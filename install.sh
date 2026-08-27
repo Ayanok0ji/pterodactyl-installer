@@ -55,10 +55,16 @@ fn_exists() { declare -F "$1" >/dev/null 2>&1; }
 # Always remove lib.sh, before downloading it
 [ -f /tmp/lib.sh ] && rm -rf /tmp/lib.sh
 
-# Try to download lib.sh from fork (master then main), fallback to upstream if 404
+# Try to download lib.sh from fork - try plain and refs/heads forms (GitHub raw needs refs/heads/main sometimes)
 if ! curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/$GITHUB_SOURCE/lib/lib.sh" 2>/dev/null; then
   if ! curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/master/lib/lib.sh" 2>/dev/null; then
-    curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/main/lib/lib.sh" 2>/dev/null || true
+    if ! curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/main/lib/lib.sh" 2>/dev/null; then
+      if ! curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/refs/heads/main/lib/lib.sh" 2>/dev/null; then
+        if ! curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/refs/heads/master/lib/lib.sh" 2>/dev/null; then
+          curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/refs/heads/$GITHUB_SOURCE/lib/lib.sh" 2>/dev/null || true
+        fi
+      fi
+    fi
   fi
 fi
 
@@ -67,7 +73,8 @@ if [ ! -s /tmp/lib.sh ] || grep -q "404" /tmp/lib.sh 2>/dev/null; then
   echo "* Warning: fork lib.sh not found at $GITHUB_BASE_URL, falling back to upstream..."
   rm -rf /tmp/lib.sh
   curl -fSsL -o /tmp/lib.sh "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/$GITHUB_SOURCE/lib/lib.sh" 2>/dev/null || \
-  curl -fSsL -o /tmp/lib.sh "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/master/lib/lib.sh" 2>/dev/null || true
+  curl -fSsL -o /tmp/lib.sh "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/master/lib/lib.sh" 2>/dev/null || \
+  curl -fSsL -o /tmp/lib.sh "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/refs/heads/main/lib/lib.sh" 2>/dev/null || true
 fi
 
 # shellcheck source=lib/lib.sh

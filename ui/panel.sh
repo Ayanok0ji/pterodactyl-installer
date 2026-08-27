@@ -35,7 +35,7 @@ set -e
 fn_exists() { declare -F "$1" >/dev/null; }
 if ! fn_exists lib_loaded; then
   # shellcheck source=lib/lib.sh
-  source /tmp/lib.sh || source <(curl -sSL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh)
+  source /tmp/lib.sh || source <(curl -fSsL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/main/lib/lib.sh" 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/main/lib/lib.sh" 2>/dev/null || curl -sSL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh)
   ! fn_exists lib_loaded && echo "* ERROR: Could not load lib script" && exit 1
 fi
 
@@ -170,7 +170,14 @@ main() {
   rand_pw=$(gen_passwd 64)
   password_input MYSQL_PASSWORD "Password (press enter to use randomly generated password): " "MySQL password cannot be empty" "$rand_pw"
 
-  readarray -t valid_timezones <<<"$(curl -s "$GITHUB_URL"/configs/valid_timezones.txt)"
+  # Fetch valid_timezones with fallback to refs/heads
+  if ! readarray -t valid_timezones <<<"$(curl -fSsL "$GITHUB_URL"/configs/valid_timezones.txt 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/main/configs/valid_timezones.txt" 2>/dev/null || curl -s "$GITHUB_URL"/configs/valid_timezones.txt)"; then
+    valid_timezones=()
+  fi
+  # fallback if still empty try upstream
+  if [ ${#valid_timezones[@]} -eq 0 ]; then
+    readarray -t valid_timezones <<<"$(curl -fSsL https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/master/configs/valid_timezones.txt 2>/dev/null || echo "Europe/Stockholm")"
+  fi
   output "List of valid timezones here $(hyperlink "https://www.php.net/manual/en/timezones.php")"
 
   while [ -z "$timezone" ]; do
@@ -213,8 +220,10 @@ main() {
     [ "$CONFIGURE_LETSENCRYPT" == false ] && ask_assume_ssl
   fi
 
-  # verify FQDN if user has selected to assume SSL or configure Let's Encrypt
-  [ "$CONFIGURE_LETSENCRYPT" == true ] || [ "$ASSUME_SSL" == true ] && bash <(curl -s "$GITHUB_URL"/lib/verify-fqdn.sh) "$FQDN"
+  # verify FQDN if user has selected to assume SSL or configure Let's Encrypt (with refs/heads fallback)
+  if [ "$CONFIGURE_LETSENCRYPT" == true ] || [ "$ASSUME_SSL" == true ]; then
+    bash <(curl -fSsL "$GITHUB_URL"/lib/verify-fqdn.sh 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/main/lib/verify-fqdn.sh" 2>/dev/null || curl -s "$GITHUB_URL"/lib/verify-fqdn.sh) "$FQDN"
+  fi
 
   # ask telemetry preference
   ask_telemetry

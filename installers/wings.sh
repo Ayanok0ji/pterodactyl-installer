@@ -35,7 +35,7 @@ set -e
 fn_exists() { declare -F "$1" >/dev/null; }
 if ! fn_exists lib_loaded; then
   # shellcheck source=lib/lib.sh
-  source /tmp/lib.sh || source <(curl -sSL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh)
+  source /tmp/lib.sh || source <(curl -fSsL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/main/lib/lib.sh" 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/main/lib/lib.sh" 2>/dev/null || curl -sSL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh)
   ! fn_exists lib_loaded && echo "* ERROR: Could not load lib script" && exit 1
 fi
 
@@ -144,7 +144,11 @@ ptdl_dl() {
 systemd_file() {
   output "Installing systemd service.."
 
-  curl -o /etc/systemd/system/wings.service "$GITHUB_URL"/configs/wings.service
+  if fn_exists github_fetch; then
+    github_fetch "configs/wings.service" "/etc/systemd/system/wings.service" || curl -o /etc/systemd/system/wings.service "$GITHUB_URL"/configs/wings.service
+  else
+    curl -fSsL -o /etc/systemd/system/wings.service "$GITHUB_URL"/configs/wings.service 2>/dev/null || curl -fSsL -o /etc/systemd/system/wings.service "$GITHUB_BASE_URL/refs/heads/main/configs/wings.service" 2>/dev/null || curl -o /etc/systemd/system/wings.service "$GITHUB_URL"/configs/wings.service
+  fi
   systemctl daemon-reload
   systemctl enable wings
 

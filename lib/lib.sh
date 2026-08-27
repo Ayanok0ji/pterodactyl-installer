@@ -359,14 +359,18 @@ update_lib_source() {
   GITHUB_URL="$GITHUB_BASE_URL/$GITHUB_SOURCE"
   rm -rf /tmp/lib.sh
   if ! curl -fSsL -o /tmp/lib.sh "$GITHUB_URL/lib/lib.sh" 2>/dev/null; then
-    # fallback try master/main if GITHUB_SOURCE is a tag that doesn't have lib.sh on fork
+    # fallback try master/main and refs/heads variants
     curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/master/lib/lib.sh" 2>/dev/null || \
-    curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/main/lib/lib.sh" 2>/dev/null || true
+    curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/main/lib/lib.sh" 2>/dev/null || \
+    curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/refs/heads/main/lib/lib.sh" 2>/dev/null || \
+    curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/refs/heads/master/lib/lib.sh" 2>/dev/null || \
+    curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/refs/heads/$GITHUB_SOURCE/lib/lib.sh" 2>/dev/null || true
   fi
   if [ ! -s /tmp/lib.sh ] || grep -q "404" /tmp/lib.sh 2>/dev/null; then
     echo "* Warning: lib.sh not found at $GITHUB_URL, trying upstream..."
     curl -fSsL -o /tmp/lib.sh "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/$GITHUB_SOURCE/lib/lib.sh" 2>/dev/null || \
-    curl -fSsL -o /tmp/lib.sh "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/master/lib/lib.sh" 2>/dev/null || true
+    curl -fSsL -o /tmp/lib.sh "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/master/lib/lib.sh" 2>/dev/null || \
+    curl -fSsL -o /tmp/lib.sh "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/refs/heads/main/lib/lib.sh" 2>/dev/null || true
   fi
   # shellcheck source=lib/lib.sh
   source /tmp/lib.sh
@@ -374,12 +378,28 @@ update_lib_source() {
 
 run_installer() {
   local url="$GITHUB_URL/installers/$1.sh"
-  bash <(curl -fSsL "$url" 2>/dev/null || curl -fSsL "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/master/installers/$1.sh" 2>/dev/null || curl -sSL "$url")
+  bash <(curl -fSsL "$url" 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/main/installers/$1.sh" 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/main/installers/$1.sh" 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/$GITHUB_SOURCE/installers/$1.sh" 2>/dev/null || curl -fSsL "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/master/installers/$1.sh" 2>/dev/null || curl -sSL "$url")
 }
 
 run_ui() {
   local url="$GITHUB_URL/ui/$1.sh"
-  bash <(curl -fSsL "$url" 2>/dev/null || curl -fSsL "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/master/ui/$1.sh" 2>/dev/null || curl -sSL "$url")
+  bash <(curl -fSsL "$url" 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/main/ui/$1.sh" 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/main/ui/$1.sh" 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/$GITHUB_SOURCE/ui/$1.sh" 2>/dev/null || curl -fSsL "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/master/ui/$1.sh" 2>/dev/null || curl -sSL "$url")
+}
+
+# Helper to fetch any file from GITHUB_URL with fallback to refs/heads and upstream
+github_fetch() {
+  local src_path="$1"
+  local dest="$2"
+  for base in "$GITHUB_URL" "$GITHUB_BASE_URL/main" "$GITHUB_BASE_URL/refs/heads/main" "$GITHUB_BASE_URL/master" "$GITHUB_BASE_URL/refs/heads/master" "$GITHUB_BASE_URL/refs/heads/$GITHUB_SOURCE" "$GITHUB_BASE_URL/$GITHUB_SOURCE"; do
+    if curl -fSsL -o "$dest" "$base/$src_path" 2>/dev/null && [ -s "$dest" ] && ! grep -q "404" "$dest" 2>/dev/null; then
+      return 0
+    fi
+  done
+  # upstream final fallback
+  if curl -fSsL -o "$dest" "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/master/$src_path" 2>/dev/null && [ -s "$dest" ]; then
+    return 0
+  fi
+  return 1
 }
 
 array_contains_element() {
