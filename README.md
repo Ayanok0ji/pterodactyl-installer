@@ -16,20 +16,31 @@
 >
 > **Fork repo (this):** `https://github.com/Ayanok0ji/pterodactyl-installer` — please use the fork one-liner below.
 
-Unofficial scripts for installing Pterodactyl Panel & Wings. **This fork adds version selection** — e.g. install Panel + Wings both at `1.11.3` or `1.11.1`, while keeping `latest` as default.
+Unofficial scripts for installing Pterodactyl Panel & Wings. **This fork adds version selection — install ANY version** (e.g., `1.11.3`, `1.11.1`, `1.10.7`, `v1.12.0`, etc.) for Panel + Wings, while keeping `latest` as default.
 
 Read more about [Pterodactyl](https://pterodactyl.io/) here. This script is not associated with the official Pterodactyl Project.
 
 ## ✨ What's new in this fork vs upstream
 
-- **Version selection for Panel & Wings (same version)** — when you run the installer, it asks:
+- **Install ANY Pterodactyl version for Panel & Wings (same tag by default)** — installer fetches up to 30 recent releases from GitHub (`https://api.github.com/repos/pterodactyl/panel/releases`) and shows a menu:
   ```
-  * Enter Pterodactyl version [latest]: 1.11.3
+  [0] latest  (recommended - always newest stable)
+  [1] v1.11.9
+  [2] v1.11.8
+  [3] v1.11.3
+  [4] v1.11.1
+  ...
+  * Choose version [0] or type version [latest]: 3  -> installs v1.11.3 for BOTH panel & wings
+  * Choose version [0] or type version [latest]: 1.11.3  -> same
+  * Choose version [0] or type version [latest]: v1.11.1 -> installs v1.11.1
   ```
-  Enter `1.11.3`, `v1.11.3`, `1.11.1` for a pinned release, or press **ENTER** for `latest`. The same version is used for **both** panel and wings, as requested.
+  You can pick a number from the list OR type any custom tag like `1.11.3`, `v1.11.3`, `1.11.1`, `1.10.7`, `v1.8.2`, even pre-releases if they exist. Same version is used for **both** panel and wings (as requested). Or press **ENTER** for `latest`.
   - `latest` → `https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz` and `.../wings/releases/latest/download/wings_linux_<arch>`
   - `1.11.3` → `https://github.com/pterodactyl/panel/releases/download/v1.11.3/panel.tar.gz` and `.../wings/releases/download/v1.11.3/wings_linux_<arch>`
-  - Supports env var for automation: `PTERODACTYL_VERSION=1.11.3 bash install.sh` or `PTERODACTYL_VERSION=v1.11.1 bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)`
+  - `1.10.7` → `.../download/v1.10.7/panel.tar.gz` (any version works)
+  - Env var for automation: `PTERODACTYL_VERSION=1.11.3 bash install.sh` / `PTERODACTYL_VERSION=v1.11.1 bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)` / `PTERODACTYL_VERSION=any_tag ...`
+  - If API is offline/rate-limited, falls back to manual input
+  - Advanced: `PTERODACTYL_PANEL_VERSION=v1.11.3 PTERODACTYL_WINGS_VERSION=v1.11.5` to set panel/wings separately
 - **Fork attribution headers** in every script to avoid copyright confusion (GPL-3.0 compliant).
 - Non-interactive / CI friendly — can pre-set version via env var.
 
@@ -79,22 +90,26 @@ _\* Indicates an operating system and release that previously was supported by t
 
 ## Using the installation scripts
 
-### This fork (Ayanok0ji) — recommended if you want version selection
+### This fork (Ayanok0ji) — recommended if you want version selection (ANY version)
 
 ```bash
-# Interactive — will prompt for version (e.g., 1.11.3, 1.11.1 or latest)
+# Interactive — shows menu of 30 recent versions + lets you type ANY version
 bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
+# Example menu: [0] latest, [1] v1.11.9, [2] v1.11.3, [3] v1.11.1 ... -> pick number or type 1.10.7
 
-# Non-interactive examples
+# Non-interactive examples (any version)
 PTERODACTYL_VERSION=1.11.3 bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
 PTERODACTYL_VERSION=v1.11.1 bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
+PTERODACTYL_VERSION=1.10.7 bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
 PTERODACTYL_VERSION=latest bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
+# Advanced: different panel/wings versions
+PTERODACTYL_PANEL_VERSION=v1.11.3 PTERODACTYL_WINGS_VERSION=v1.11.1 bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
 ```
 
 The script will ask:
 
 1. What to install: panel / wings / both
-2. **Pterodactyl version** `[latest]` — type `1.11.3` or press ENTER for latest. For "both", the SAME version applies to panel + wings.
+2. **Pterodactyl version** — shows 30 recent tags + `[0] latest`. Type number (`3`) or type any tag (`1.10.7`, `v1.11.3`, `latest`). For "both", SAME version applies to panel + wings by default.
 
 If the selected version does not exist (e.g., typo), the download will fail with a clear error and a link to `https://github.com/pterodactyl/panel/releases` and `https://github.com/pterodactyl/wings/releases`.
 
@@ -169,4 +184,4 @@ Thanks to the Discord moderators [sam1370](https://github.com/sam1370), [Linux12
 
 Fork:
 
-- Modified by [Ayanok0ji](https://github.com/Ayanok0ji) — added version selection (1.11.3 / 1.11.1 / latest for panel & wings) and fork attribution.
+- Modified by [Ayanok0ji](https://github.com/Ayanok0ji) — added ANY version selection (menu of 30 + custom input, panel & wings same tag) and fork attribution.

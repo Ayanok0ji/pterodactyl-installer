@@ -125,35 +125,31 @@ while [ "$done" == false ]; do
   [[ ! " ${valid_input[*]} " =~ ${action} ]] && error "Invalid option" && continue
 
   if [[ " ${valid_input[*]} " =~ ${action} ]]; then
-    # ---- Pterodactyl version selection (added by Ayanok0ji fork) ----
+    # ---- Pterodactyl version selection (fork by Ayanok0ji) ----
     # Skip version prompt for uninstall
     if [[ "${actions[$action]}" != *"uninstall"* ]]; then
-      # Allow env var to skip prompt: PTERODACTYL_VERSION=1.11.3 bash install.sh
-      if [[ -z "$PTERODACTYL_VERSION" ]]; then
+      # Use lib helper to list ALL versions with menu (supports any version)
+      if fn_exists ask_pterodactyl_version; then
         echo ""
-        output "Version selection: panel & wings will use the SAME version."
-        output "Examples: 1.11.3 , 1.11.1 , v1.11.3 , or leave empty for latest"
-        echo -n "* Enter Pterodactyl version [latest]: "
-        read -r PTERODACTYL_VERSION_INPUT
-        if [ -z "$PTERODACTYL_VERSION_INPUT" ]; then
-          export PTERODACTYL_VERSION="latest"
-        else
-          export PTERODACTYL_VERSION="$PTERODACTYL_VERSION_INPUT"
-        fi
-        # Normalize & validate via lib helper if available
-        if fn_exists set_pterodactyl_urls; then
-          set_pterodactyl_urls
-          output "Selected version: $PTERODACTYL_VERSION"
-        else
-          # Fallback normalization
+        ask_pterodactyl_version
+        echo ""
+      else
+        # Fallback if lib helper missing
+        if [[ -z "$PTERODACTYL_VERSION" ]]; then
+          echo ""
+          output "Version selection: panel & wings will use SAME version. Any tag allowed."
+          echo -n "* Enter Pterodactyl version [latest] (e.g., 1.11.3, 1.11.1, v1.11.3): "
+          read -r PTERODACTYL_VERSION_INPUT
+          if [ -z "$PTERODACTYL_VERSION_INPUT" ]; then
+            export PTERODACTYL_VERSION="latest"
+          else
+            export PTERODACTYL_VERSION="$PTERODACTYL_VERSION_INPUT"
+          fi
           PTERODACTYL_VERSION="$(echo "$PTERODACTYL_VERSION" | tr -d '[:space:]')"
           [[ "$PTERODACTYL_VERSION" != "latest" && "$PTERODACTYL_VERSION" != v* ]] && export PTERODACTYL_VERSION="v$PTERODACTYL_VERSION"
           output "Selected version: $PTERODACTYL_VERSION"
+          echo ""
         fi
-        echo ""
-      else
-        output "Using pre-set Pterodactyl version: $PTERODACTYL_VERSION"
-        fn_exists set_pterodactyl_urls && set_pterodactyl_urls
       fi
     fi
     done=true && IFS=";" read -r i1 i2 <<<"${actions[$action]}" && execute "$i1" "$i2"

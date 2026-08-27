@@ -140,69 +140,150 @@ normalize_version() {
 }
 
 # Set PANEL_DL_URL / WINGS_DL_BASE_URL based on PTERODACTYL_VERSION
+# Supports unified version (PTERODACTYL_VERSION) and separate overrides
 set_pterodactyl_urls() {
-  local ver
-  ver="$(normalize_version "${PTERODACTYL_VERSION:-latest}")"
-  export PTERODACTYL_VERSION="$ver"
-  if [[ "$ver" == "latest" ]]; then
+  # Allow separate overrides: PTERODACTYL_PANEL_VERSION / PTERODACTYL_WINGS_VERSION
+  # If they are set individually, use them; otherwise use unified PTERODACTYL_VERSION
+  local panel_ver wings_ver unified_ver
+  unified_ver="$(normalize_version "${PTERODACTYL_VERSION:-latest}")"
+  export PTERODACTYL_VERSION="$unified_ver"
+
+  # Panel version resolution
+  if [[ -n "${PTERODACTYL_PANEL_VERSION:-}" && "$PTERODACTYL_PANEL_VERSION" != "" ]]; then
+    panel_ver="$(normalize_version "$PTERODACTYL_PANEL_VERSION")"
+  else
+    panel_ver="$unified_ver"
+  fi
+  # Wings version resolution
+  if [[ -n "${PTERODACTYL_WINGS_VERSION:-}" && "$PTERODACTYL_WINGS_VERSION" != "" ]]; then
+    wings_ver="$(normalize_version "$PTERODACTYL_WINGS_VERSION")"
+  else
+    wings_ver="$unified_ver"
+  fi
+
+  export PTERODACTYL_PANEL_VERSION="$panel_ver"
+  export PTERODACTYL_WINGS_VERSION="$wings_ver"
+
+  if [[ "$panel_ver" == "latest" ]]; then
     export PANEL_DL_URL="https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz"
+  else
+    export PANEL_DL_URL="https://github.com/pterodactyl/panel/releases/download/$panel_ver/panel.tar.gz"
+  fi
+
+  if [[ "$wings_ver" == "latest" ]]; then
     export WINGS_DL_BASE_URL="https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_"
   else
-    export PANEL_DL_URL="https://github.com/pterodactyl/panel/releases/download/$ver/panel.tar.gz"
-    export WINGS_DL_BASE_URL="https://github.com/pterodactyl/wings/releases/download/$ver/wings_linux_"
-    export PTERODACTYL_PANEL_VERSION="$ver"
-    export PTERODACTYL_WINGS_VERSION="$ver"
+    export WINGS_DL_BASE_URL="https://github.com/pterodactyl/wings/releases/download/$wings_ver/wings_linux_"
+  fi
+
+  # Keep unified var in sync if both same; otherwise keep as is
+  if [[ "$panel_ver" == "$wings_ver" ]]; then
+    export PTERODACTYL_VERSION="$panel_ver"
   fi
 }
 
-# Prompt user to select Pterodactyl version (panel & wings same version as requested)
+# Fetch available Pterodactyl versions (panel releases) - returns newline separated tags
+get_available_versions() {
+  local api_url="https://api.github.com/repos/pterodactyl/panel/releases?per_page=40"
+  local tags
+  tags=$(curl -sL "$api_url" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+  if [[ -z "$tags" ]]; then
+    return 1
+  fi
+  echo "$tags"
+  return 0
+}
+
+# Prompt user to select Pterodactyl version (panel & wings same version)
+# Supports: menu selection [0]=latest, [1..N]=tags, or manual input like 1.11.3 / v1.11.3
 ask_pterodactyl_version() {
-  # If already set (e.g., passed via env or from install.sh), just apply urls and return
+  # If already set via env (e.g., PTERODACTYL_VERSION=1.11.3 bash install.sh), just apply and return
   if [[ -n "$PTERODACTYL_VERSION" && "$PTERODACTYL_VERSION" != "" ]]; then
     set_pterodactyl_urls
-    output "Using Pterodactyl version: $PTERODACTYL_VERSION (pre-selected)"
+    output "Using Pterodactyl version: $PTERODACTYL_VERSION (pre-selected via env)"
+    if [[ "$PTERODACTYL_VERSION" != "latest" ]]; then
+      output "Panel: $PTERODACTYL_PANEL_VERSION -> $PANEL_DL_URL"
+      output "Wings: $PTERODACTYL_WINGS_VERSION -> ${WINGS_DL_BASE_URL}${ARCH}"
+    fi
     return
   fi
 
-  output "Pterodactyl version selection (panel & wings will use the SAME version):"
-  output "  - Press ENTER for 'latest' (recommended, always latest release)"
-  output "  - Or enter a specific version like 1.11.3 or v1.11.3 or 1.11.1"
-  echo -n "* Enter Pterodactyl version [latest]: "
-  read -r version_input
+  output "Pterodactyl version selection - you can install ANY version"
+  output "Panel & Wings will use the SAME version by default (e.g., 1.11.3)"
+  output ""
 
-  if [ -z "$version_input" ]; then
-    version_input="latest"
-  fi
-
-  # Trim spaces
-  version_input="$(echo "$version_input" | tr -d '[:space:]')"
-
-  if [[ "$version_input" != "latest" ]]; then
-    local check="${version_input#v}"
-    if ! [[ "$check" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-      warning "Invalid version format: $version_input. Expected like 1.11.3, v1.11.3 or 'latest'."
-      echo -n "* Try again [latest]: "
+  # Try to fetch list from GitHub
+  local versions_list=()
+  local fetched=""
+  output "Fetching available versions from GitHub..."
+  if fetched=$(get_available_versions 2>/dev/null); then
+    # Convert to array
+    readarray -t versions_list <<<"$fetched"
+    # Filter: keep only tags that look like versions (allow vX.Y.Z or vX.Y.Z-*)
+    # but keep all for now, limit to 30
+    if [[ ${#versions_list[@]} -gt 0 ]]; then
+      output "Available versions (showing up to 30 recent):"
+      output "[0] latest  (recommended - always newest stable)"
+      local i=1
+      for ver in "${versions_list[@]}"; do
+        # limit display
+        if [[ $i -gt 30 ]]; then break; fi
+        output "[$i] $ver"
+        i=$((i+1))
+      done
+      output ""
+      output "You can: type number [0-30], or type custom like 1.11.3 / v1.11.3 / 1.11.1 / v1.12.0-rc1, or 'latest'"
+      echo -n "* Choose version [0] or type version [latest]: "
       read -r version_input
       version_input="$(echo "$version_input" | tr -d '[:space:]')"
-      [ -z "$version_input" ] && version_input="latest"
-      if [[ "$version_input" != "latest" ]]; then
-        check="${version_input#v}"
-        if ! [[ "$check" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-          warning "Invalid format again, defaulting to 'latest'."
+
+      if [ -z "$version_input" ]; then
+        version_input="latest"
+      fi
+
+      # If input is purely numeric, treat as menu selection
+      if [[ "$version_input" =~ ^[0-9]+$ ]]; then
+        local sel=$version_input
+        if [[ $sel -eq 0 ]]; then
+          version_input="latest"
+        elif [[ $sel -ge 1 && $sel -le ${#versions_list[@]} && $sel -le 30 ]]; then
+          version_input="${versions_list[$((sel-1))]}"
+        else
+          warning "Selection $sel out of range, defaulting to 'latest'"
           version_input="latest"
         fi
       fi
+      # Otherwise treat input as direct version string - accept ANY format (relaxed)
+      # Normalize later
+    else
+      # fallback manual
+      output "No versions fetched, falling back to manual input"
+      echo -n "* Enter Pterodactyl version [latest] (e.g., 1.11.3, v1.11.1, any tag): "
+      read -r version_input
+      version_input="$(echo "$version_input" | tr -d '[:space:]')"
+      [ -z "$version_input" ] && version_input="latest"
     fi
+  else
+    warning "Could not fetch version list (API rate limit or offline). Manual input only."
+    echo -n "* Enter Pterodactyl version [latest] (e.g., 1.11.3, v1.11.1, any tag): "
+    read -r version_input
+    version_input="$(echo "$version_input" | tr -d '[:space:]')"
+    [ -z "$version_input" ] && version_input="latest"
   fi
 
   export PTERODACTYL_VERSION="$version_input"
   set_pterodactyl_urls
   if [[ "$PTERODACTYL_VERSION" == "latest" ]]; then
     output "Selected version: latest"
-  else
-    output "Selected Pterodactyl version: $PTERODACTYL_VERSION (panel + wings)"
     output "Panel URL: $PANEL_DL_URL"
     output "Wings URL: ${WINGS_DL_BASE_URL}${ARCH}"
+  else
+    output "Selected Pterodactyl version: $PTERODACTYL_VERSION (panel + wings)"
+    output "Panel: $PTERODACTYL_PANEL_VERSION -> $PANEL_DL_URL"
+    output "Wings: $PTERODACTYL_WINGS_VERSION -> ${WINGS_DL_BASE_URL}${ARCH}"
+    if [[ "$PTERODACTYL_PANEL_VERSION" != "$PTERODACTYL_WINGS_VERSION" ]]; then
+      warning "Panel and Wings versions differ - ensure they are compatible!"
+    fi
   fi
 }
 
