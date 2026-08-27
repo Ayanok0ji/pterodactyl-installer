@@ -6,7 +6,8 @@ set -e
 #                                                                                    #
 # Project 'pterodactyl-installer'                                                    #
 #                                                                                    #
-# Copyright (C) 2018 - 2022, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
+# Copyright (C) 2018 - 2026, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
+# Fork modifications Copyright (C) 2026, Ayanok0ji <https://github.com/Ayanok0ji>    #
 #                                                                                    #
 #   This program is free software: you can redistribute it and/or modify             #
 #   it under the terms of the GNU General Public License as published by             #
@@ -25,6 +26,10 @@ set -e
 #                                                                                    #
 # This script is not associated with the official Pterodactyl Project.               #
 # https://github.com/pterodactyl-installer/pterodactyl-installer                     #
+# Fork: https://github.com/Ayanok0ji/pterodactyl-installer                           #
+# Original project: https://github.com/pterodactyl-installer/pterodactyl-installer   #
+# Original one-liner: bash <(curl -s https://pterodactyl-installer.se)               #
+#              NOT affiliated with this fork. This fork is maintained by Ayanok0ji.  #
 #                                                                                    #
 ######################################################################################
 
@@ -34,21 +39,28 @@ set -e
 export GITHUB_SOURCE=${GITHUB_SOURCE:-master}
 export SCRIPT_RELEASE=${SCRIPT_RELEASE:-canary}
 
-# Pterodactyl versions
+# Pterodactyl versions - user selectable (e.g., 1.11.3, v1.11.3, or latest)
+# PTERODACTYL_VERSION is the unified version used for both panel & wings (user request)
+export PTERODACTYL_VERSION="${PTERODACTYL_VERSION:-}"
 export PTERODACTYL_PANEL_VERSION=""
 export PTERODACTYL_WINGS_VERSION=""
+
+# Path (export everything that is possible, doesn't matter that it exists already)
+export PATH="$PATH:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin"
 
 # OS
 export OS=""
 export OS_VER_MAJOR=""
 export CPU_ARCHITECTURE=""
 export ARCH=""
+export SUPPORTED=false
 
 # download URLs
 export PANEL_DL_URL="https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz"
 export WINGS_DL_BASE_URL="https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_"
 export MARIADB_URL="https://downloads.mariadb.com/MariaDB/mariadb_repo_setup"
-export GITHUB_BASE_URL=${GITHUB_BASE_URL:-"https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer"}
+# Fork default: Ayanok0ji ; upstream: https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer
+export GITHUB_BASE_URL=${GITHUB_BASE_URL:-"https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer"}
 export GITHUB_URL="$GITHUB_BASE_URL/$GITHUB_SOURCE"
 
 # Colors
@@ -100,27 +112,138 @@ print_brake() {
   echo ""
 }
 
+print_list() {
+  print_brake 30
+  for word in $1; do
+    output "$word"
+  done
+  print_brake 30
+  echo ""
+}
+
 hyperlink() {
   echo -e "\e]8;;${1}\a${1}\e]8;;\a"
 }
 
+# ---------------- Version helpers --------------- #
+
+# Normalize version input: latest -> latest, 1.11.3 -> v1.11.3, v1.11.3 -> v1.11.3
+normalize_version() {
+  local ver="$1"
+  ver="$(echo "$ver" | tr -d '[:space:]')"
+  if [[ -z "$ver" || "$ver" == "latest" ]]; then
+    echo "latest"
+    return
+  fi
+  [[ "$ver" != v* ]] && ver="v$ver"
+  echo "$ver"
+}
+
+# Set PANEL_DL_URL / WINGS_DL_BASE_URL based on PTERODACTYL_VERSION
+set_pterodactyl_urls() {
+  local ver
+  ver="$(normalize_version "${PTERODACTYL_VERSION:-latest}")"
+  export PTERODACTYL_VERSION="$ver"
+  if [[ "$ver" == "latest" ]]; then
+    export PANEL_DL_URL="https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz"
+    export WINGS_DL_BASE_URL="https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_"
+  else
+    export PANEL_DL_URL="https://github.com/pterodactyl/panel/releases/download/$ver/panel.tar.gz"
+    export WINGS_DL_BASE_URL="https://github.com/pterodactyl/wings/releases/download/$ver/wings_linux_"
+    export PTERODACTYL_PANEL_VERSION="$ver"
+    export PTERODACTYL_WINGS_VERSION="$ver"
+  fi
+}
+
+# Prompt user to select Pterodactyl version (panel & wings same version as requested)
+ask_pterodactyl_version() {
+  # If already set (e.g., passed via env or from install.sh), just apply urls and return
+  if [[ -n "$PTERODACTYL_VERSION" && "$PTERODACTYL_VERSION" != "" ]]; then
+    set_pterodactyl_urls
+    output "Using Pterodactyl version: $PTERODACTYL_VERSION (pre-selected)"
+    return
+  fi
+
+  output "Pterodactyl version selection (panel & wings will use the SAME version):"
+  output "  - Press ENTER for 'latest' (recommended, always latest release)"
+  output "  - Or enter a specific version like 1.11.3 or v1.11.3 or 1.11.1"
+  echo -n "* Enter Pterodactyl version [latest]: "
+  read -r version_input
+
+  if [ -z "$version_input" ]; then
+    version_input="latest"
+  fi
+
+  # Trim spaces
+  version_input="$(echo "$version_input" | tr -d '[:space:]')"
+
+  if [[ "$version_input" != "latest" ]]; then
+    local check="${version_input#v}"
+    if ! [[ "$check" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      warning "Invalid version format: $version_input. Expected like 1.11.3, v1.11.3 or 'latest'."
+      echo -n "* Try again [latest]: "
+      read -r version_input
+      version_input="$(echo "$version_input" | tr -d '[:space:]')"
+      [ -z "$version_input" ] && version_input="latest"
+      if [[ "$version_input" != "latest" ]]; then
+        check="${version_input#v}"
+        if ! [[ "$check" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          warning "Invalid format again, defaulting to 'latest'."
+          version_input="latest"
+        fi
+      fi
+    fi
+  fi
+
+  export PTERODACTYL_VERSION="$version_input"
+  set_pterodactyl_urls
+  if [[ "$PTERODACTYL_VERSION" == "latest" ]]; then
+    output "Selected version: latest"
+  else
+    output "Selected Pterodactyl version: $PTERODACTYL_VERSION (panel + wings)"
+    output "Panel URL: $PANEL_DL_URL"
+    output "Wings URL: ${WINGS_DL_BASE_URL}${ARCH}"
+  fi
+}
+
 # First argument is wings / panel / neither
 welcome() {
+  # Ensure URLs reflect any pre-selected version before fetching latest
+  if [[ -n "$PTERODACTYL_VERSION" && "$PTERODACTYL_VERSION" != "latest" ]]; then
+    set_pterodactyl_urls
+  fi
+
   get_latest_versions
 
   print_brake 70
   output "Pterodactyl panel installation script @ $SCRIPT_RELEASE"
   output ""
-  output "Copyright (C) 2018 - 2022, Vilhelm Prytz, <vilhelm@prytznet.se>"
-  output "https://github.com/pterodactyl-installer/pterodactyl-installer"
+  output "Copyright (C) 2018 - 2026, Vilhelm Prytz, <vilhelm@prytznet.se>"
+  output "Fork by Ayanok0ji (https://github.com/Ayanok0ji) - version selection added"
+  output "Original: https://github.com/pterodactyl-installer/pterodactyl-installer"
+  output "Original one-liner bash <(curl -s https://pterodactyl-installer.se) is NOT this fork"
   output ""
   output "This script is not associated with the official Pterodactyl Project."
   output ""
   output "Running $OS version $OS_VER."
   if [ "$1" == "panel" ]; then
-    output "Latest pterodactyl/panel is $PTERODACTYL_PANEL_VERSION"
+    if [[ "$PTERODACTYL_VERSION" != "latest" && -n "$PTERODACTYL_VERSION" ]]; then
+      output "Selected pterodactyl/panel version: $PTERODACTYL_PANEL_VERSION (selected)"
+      output "Latest pterodactyl/panel is $(get_latest_release "pterodactyl/panel" 2>/dev/null || echo "unknown")"
+    else
+      output "Latest pterodactyl/panel is $PTERODACTYL_PANEL_VERSION"
+    fi
   elif [ "$1" == "wings" ]; then
-    output "Latest pterodactyl/wings is $PTERODACTYL_WINGS_VERSION"
+    if [[ "$PTERODACTYL_VERSION" != "latest" && -n "$PTERODACTYL_VERSION" ]]; then
+      output "Selected pterodactyl/wings version: $PTERODACTYL_WINGS_VERSION (selected)"
+      output "Latest pterodactyl/wings is $(get_latest_release "pterodactyl/wings" 2>/dev/null || echo "unknown")"
+    else
+      output "Latest pterodactyl/wings is $PTERODACTYL_WINGS_VERSION"
+    fi
+  else
+    if [[ -n "$PTERODACTYL_VERSION" && "$PTERODACTYL_VERSION" != "latest" ]]; then
+      output "Selected Pterodactyl version: $PTERODACTYL_VERSION (panel & wings)"
+    fi
   fi
   print_brake 70
 }
@@ -135,8 +258,20 @@ get_latest_release() {
 
 get_latest_versions() {
   output "Retrieving release information..."
+  # If user already selected a specific version, keep it and just set URLs
+  if [[ -n "$PTERODACTYL_VERSION" && "$PTERODACTYL_VERSION" != "latest" ]]; then
+    local normalized
+    normalized="$(normalize_version "$PTERODACTYL_VERSION")"
+    export PTERODACTYL_VERSION="$normalized"
+    export PTERODACTYL_PANEL_VERSION="$normalized"
+    export PTERODACTYL_WINGS_VERSION="$normalized"
+    set_pterodactyl_urls
+    return
+  fi
   PTERODACTYL_PANEL_VERSION=$(get_latest_release "pterodactyl/panel")
   PTERODACTYL_WINGS_VERSION=$(get_latest_release "pterodactyl/wings")
+  # Ensure latest URLs are set
+  set_pterodactyl_urls
 }
 
 update_lib_source() {
@@ -189,8 +324,8 @@ create_db_user() {
 
   output "Creating database user $db_user_name..."
 
-  mysql -u root -e "CREATE USER '$db_user_name'@'$db_host' IDENTIFIED BY '$db_user_password';"
-  mysql -u root -e "FLUSH PRIVILEGES;"
+  mariadb -u root -e "CREATE USER '$db_user_name'@'$db_host' IDENTIFIED BY '$db_user_password';"
+  mariadb -u root -e "FLUSH PRIVILEGES;"
 
   output "Database user $db_user_name created"
 }
@@ -202,8 +337,8 @@ grant_all_privileges() {
 
   output "Granting all privileges on $db_name to $db_user_name..."
 
-  mysql -u root -e "GRANT ALL PRIVILEGES ON $db_name.* TO '$db_user_name'@'$db_host' WITH GRANT OPTION;"
-  mysql -u root -e "FLUSH PRIVILEGES;"
+  mariadb -u root -e "GRANT ALL PRIVILEGES ON $db_name.* TO '$db_user_name'@'$db_host' WITH GRANT OPTION;"
+  mariadb -u root -e "FLUSH PRIVILEGES;"
 
   output "Privileges granted"
 
@@ -216,7 +351,7 @@ create_db() {
 
   output "Creating database $db_name..."
 
-  mysql -u root -e "CREATE DATABASE $db_name;"
+  mariadb -u root -e "CREATE DATABASE $db_name;"
   grant_all_privileges "$db_name" "$db_user_name" "$db_host"
 
   output "Database $db_name created"
@@ -224,19 +359,29 @@ create_db() {
 
 # --------------- Package Manager -------------- #
 
-# Argument for quite mode
 update_repos() {
   local args=""
-  [[ $1 == true ]] && args="-qq"
+  
+  [[ "$1" == true ]] && args="-qq"
+
   case "$OS" in
-  ubuntu | debian)
-    apt-get -y $args update
-    ;;
-  *)
-    # Do nothing as AlmaLinux and RockyLinux update metadata before installing packages.
-    ;;
+    ubuntu | debian)
+      output "Updating package repositories..."
+      if ! apt-get update -y $args; then
+        error "Failed to update repositories."
+        return 1
+      fi
+      ;;
+    centos | almalinux | rockylinux)
+      # Skip since these distros auto-refresh metadata
+      output "Skipping repository update (handled automatically on $OS)."
+      ;;
+    *)
+      warning "Unsupported OS: $OS — skipping repository update."
+      ;;
   esac
 }
+
 
 # First argument list of packages to install, second argument for quite mode
 install_packages() {
@@ -515,14 +660,16 @@ esac
 
 case "$OS" in
 ubuntu)
-  [ "$OS_VER_MAJOR" == "18" ] && SUPPORTED=true
-  [ "$OS_VER_MAJOR" == "20" ] && SUPPORTED=true
   [ "$OS_VER_MAJOR" == "22" ] && SUPPORTED=true
+  [ "$OS_VER_MAJOR" == "24" ] && SUPPORTED=true
+  [ "$OS_VER_MAJOR" == "26" ] && SUPPORTED=true
   export DEBIAN_FRONTEND=noninteractive
   ;;
 debian)
   [ "$OS_VER_MAJOR" == "10" ] && SUPPORTED=true
   [ "$OS_VER_MAJOR" == "11" ] && SUPPORTED=true
+  [ "$OS_VER_MAJOR" == "12" ] && SUPPORTED=true
+  [ "$OS_VER_MAJOR" == "13" ] && SUPPORTED=true
   export DEBIAN_FRONTEND=noninteractive
   ;;
 rocky | almalinux)

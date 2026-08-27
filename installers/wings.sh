@@ -6,7 +6,8 @@ set -e
 #                                                                                    #
 # Project 'pterodactyl-installer'                                                    #
 #                                                                                    #
-# Copyright (C) 2018 - 2022, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
+# Copyright (C) 2018 - 2026, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
+# Fork modifications Copyright (C) 2026, Ayanok0ji <https://github.com/Ayanok0ji>    #
 #                                                                                    #
 #   This program is free software: you can redistribute it and/or modify             #
 #   it under the terms of the GNU General Public License as published by             #
@@ -25,6 +26,8 @@ set -e
 #                                                                                    #
 # This script is not associated with the official Pterodactyl Project.               #
 # https://github.com/pterodactyl-installer/pterodactyl-installer                     #
+# Fork: https://github.com/Ayanok0ji/pterodactyl-installer                           #
+# Original project CCTO: Vilhelm Prytz & contributors                                #
 #                                                                                    #
 ######################################################################################
 
@@ -81,8 +84,6 @@ dep_install() {
     mkdir -p /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
 
-    [ "$INSTALL_MARIADB" == true ] && [ "$OS_VER_MAJOR" == "18" ] && curl -sS "$MARIADB_URL" | bash
-
     echo \
       "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$OS \
       $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list >/dev/null
@@ -114,14 +115,30 @@ dep_install() {
 }
 
 ptdl_dl() {
+  if fn_exists set_pterodactyl_urls; then set_pterodactyl_urls; fi
+  if [[ -z "$WINGS_DL_BASE_URL" ]]; then
+    if [[ -n "$PTERODACTYL_VERSION" && "$PTERODACTYL_VERSION" != "latest" ]]; then
+      [[ "$PTERODACTYL_VERSION" != v* ]] && PTERODACTYL_VERSION="v$PTERODACTYL_VERSION"
+      WINGS_DL_BASE_URL="https://github.com/pterodactyl/wings/releases/download/$PTERODACTYL_VERSION/wings_linux_"
+    else
+      WINGS_DL_BASE_URL="https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_"
+    fi
+  fi
+
   echo "* Downloading Pterodactyl Wings.. "
+  output "Version: ${PTERODACTYL_VERSION:-latest} (${PTERODACTYL_WINGS_VERSION:-latest})"
+  output "URL: ${WINGS_DL_BASE_URL}${ARCH}"
 
   mkdir -p /etc/pterodactyl
-  curl -L -o /usr/local/bin/wings "$WINGS_DL_BASE_URL$ARCH"
+  if ! curl -fL -o /usr/local/bin/wings "${WINGS_DL_BASE_URL}${ARCH}"; then
+    error "Failed to download wings from ${WINGS_DL_BASE_URL}${ARCH}"
+    error "Check that version $PTERODACTYL_VERSION exists at https://github.com/pterodactyl/wings/releases"
+    exit 1
+  fi
 
   chmod u+x /usr/local/bin/wings
 
-  success "Pterodactyl Wings downloaded successfully"
+  success "Pterodactyl Wings downloaded successfully (version $PTERODACTYL_VERSION)"
 }
 
 systemd_file() {
@@ -140,7 +157,12 @@ firewall_ports() {
   [ "$CONFIGURE_LETSENCRYPT" == true ] && firewall_allow_ports "80 443"
   [ "$CONFIGURE_DB_FIREWALL" == true ] && firewall_allow_ports "3306"
 
-  firewall_allow_ports "22 8080 2022"
+  firewall_allow_ports "22"
+  output "Allowed port 22"
+  firewall_allow_ports "8080"
+  output "Allowed port 8080"
+  firewall_allow_ports "2022"
+  output "Allowed port 2022"
 
   success "Firewall ports opened!"
 }

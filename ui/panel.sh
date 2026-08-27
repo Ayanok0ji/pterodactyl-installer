@@ -6,7 +6,8 @@ set -e
 #                                                                                    #
 # Project 'pterodactyl-installer'                                                    #
 #                                                                                    #
-# Copyright (C) 2018 - 2022, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
+# Copyright (C) 2018 - 2026, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
+# Fork modifications Copyright (C) 2026, Ayanok0ji <https://github.com/Ayanok0ji>    #
 #                                                                                    #
 #   This program is free software: you can redistribute it and/or modify             #
 #   it under the terms of the GNU General Public License as published by             #
@@ -25,6 +26,8 @@ set -e
 #                                                                                    #
 # This script is not associated with the official Pterodactyl Project.               #
 # https://github.com/pterodactyl-installer/pterodactyl-installer                     #
+# Fork: https://github.com/Ayanok0ji/pterodactyl-installer                           #
+# Original project CCTO: Vilhelm Prytz & contributors                                #
 #                                                                                    #
 ######################################################################################
 
@@ -49,6 +52,7 @@ export MYSQL_PASSWORD=""
 # Environment
 export timezone=""
 export email=""
+export telemetry=""
 
 # Initial admin account
 export user_email=""
@@ -91,6 +95,19 @@ ask_assume_ssl() {
   true
 }
 
+ask_telemetry() {
+  output "Pterodactyl Panel collects anonymous telemetry data to help steer the development."
+  output "More Info: https://pterodactyl.io/panel/1.0/additional_configuration.html#telemetry"
+  echo -n "* Enable sending anonymous telemetry data? (yes/no) [yes]: "
+  read -r telemetry_input
+
+  if [[ -z "$telemetry_input" ]] || [[ "$telemetry_input" =~ ^([Yy]|[Yy]es)$ ]]; then
+    telemetry="true"
+  else
+    telemetry="false"
+  fi
+}
+
 check_FQDN_SSL() {
   if [[ $(invalid_ip "$FQDN") == 1 && $FQDN != 'localhost' ]]; then
     SSL_AVAILABLE=true
@@ -113,6 +130,19 @@ main() {
   fi
 
   welcome "panel"
+
+  # ---- Version selection (fork feature) ----
+  # If install.sh already set PTERODACTYL_VERSION, this will just apply it.
+  # If running UI directly (e.g., bash <(curl .../ui/panel.sh)), prompt here.
+  if fn_exists ask_pterodactyl_version; then
+    ask_pterodactyl_version
+  elif [[ -z "$PTERODACTYL_VERSION" ]]; then
+    # Fallback if lib helper missing (old lib.sh)
+    echo -n "* Enter Pterodactyl version for panel [latest] (e.g., 1.11.3): "
+    read -r PTERODACTYL_VERSION
+    [ -z "$PTERODACTYL_VERSION" ] && PTERODACTYL_VERSION="latest"
+    export PTERODACTYL_VERSION
+  fi
 
   check_os_x86_64
 
@@ -186,6 +216,9 @@ main() {
   # verify FQDN if user has selected to assume SSL or configure Let's Encrypt
   [ "$CONFIGURE_LETSENCRYPT" == true ] || [ "$ASSUME_SSL" == true ] && bash <(curl -s "$GITHUB_URL"/lib/verify-fqdn.sh) "$FQDN"
 
+  # ask telemetry preference
+  ask_telemetry
+
   # summary
   summary
 
@@ -202,7 +235,8 @@ main() {
 
 summary() {
   print_brake 62
-  output "Pterodactyl panel $PTERODACTYL_PANEL_VERSION with nginx on $OS"
+  output "Pterodactyl panel $PTERODACTYL_PANEL_VERSION (selected: $PTERODACTYL_VERSION) with nginx on $OS"
+  output "Panel download URL: $PANEL_DL_URL"
   output "Database name: $MYSQL_DB"
   output "Database user: $MYSQL_USER"
   output "Database password: (censored)"
@@ -217,6 +251,7 @@ summary() {
   output "Configure Firewall? $CONFIGURE_FIREWALL"
   output "Configure Let's Encrypt? $CONFIGURE_LETSENCRYPT"
   output "Assume SSL? $ASSUME_SSL"
+  output "Telemetry: $telemetry"
   print_brake 62
 }
 

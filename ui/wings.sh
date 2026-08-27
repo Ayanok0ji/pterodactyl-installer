@@ -6,7 +6,8 @@ set -e
 #                                                                                    #
 # Project 'pterodactyl-installer'                                                    #
 #                                                                                    #
-# Copyright (C) 2018 - 2022, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
+# Copyright (C) 2018 - 2026, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
+# Fork modifications Copyright (C) 2026, Ayanok0ji <https://github.com/Ayanok0ji>    #
 #                                                                                    #
 #   This program is free software: you can redistribute it and/or modify             #
 #   it under the terms of the GNU General Public License as published by             #
@@ -25,6 +26,8 @@ set -e
 #                                                                                    #
 # This script is not associated with the official Pterodactyl Project.               #
 # https://github.com/pterodactyl-installer/pterodactyl-installer                     #
+# Fork: https://github.com/Ayanok0ji/pterodactyl-installer                           #
+# Original project CCTO: Vilhelm Prytz & contributors                                #
 #                                                                                    #
 ######################################################################################
 
@@ -96,7 +99,7 @@ ask_database_external() {
       MYSQL_DBHOST_HOST="$CONFIRM_DBEXTERNAL_HOST"
     fi
     [ "$CONFIGURE_FIREWALL" == true ] && ask_database_firewall
-    return 0;
+    return 0
   fi
 }
 
@@ -126,6 +129,16 @@ main() {
   fi
 
   welcome "wings"
+
+  # ---- Version selection (fork feature) ----
+  if fn_exists ask_pterodactyl_version; then
+    ask_pterodactyl_version
+  elif [[ -z "$PTERODACTYL_VERSION" ]]; then
+    echo -n "* Enter Pterodactyl version for wings [latest] (e.g., 1.11.3): "
+    read -r PTERODACTYL_VERSION
+    [ -z "$PTERODACTYL_VERSION" ] && PTERODACTYL_VERSION="latest"
+    export PTERODACTYL_VERSION
+  fi
 
   check_virt
 
@@ -194,6 +207,10 @@ main() {
     done
   fi
 
+  echo ""
+  output "Selected Pterodactyl wings version: $PTERODACTYL_WINGS_VERSION (requested: $PTERODACTYL_VERSION)"
+  output "Wings download URL: ${WINGS_DL_BASE_URL}${ARCH}"
+  echo ""
   echo -n "* Proceed with installation? (y/N): "
 
   read -r CONFIRM

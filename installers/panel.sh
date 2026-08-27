@@ -6,7 +6,8 @@ set -e
 #                                                                                    #
 # Project 'pterodactyl-installer'                                                    #
 #                                                                                    #
-# Copyright (C) 2018 - 2022, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
+# Copyright (C) 2018 - 2026, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
+# Fork modifications Copyright (C) 2026, Ayanok0ji <https://github.com/Ayanok0ji>    #
 #                                                                                    #
 #   This program is free software: you can redistribute it and/or modify             #
 #   it under the terms of the GNU General Public License as published by             #
@@ -25,6 +26,8 @@ set -e
 #                                                                                    #
 # This script is not associated with the official Pterodactyl Project.               #
 # https://github.com/pterodactyl-installer/pterodactyl-installer                     #
+# Fork: https://github.com/Ayanok0ji/pterodactyl-installer                           #
+# Original project CCTO: Vilhelm Prytz & contributors                                #
 #                                                                                    #
 ######################################################################################
 
@@ -48,6 +51,7 @@ MYSQL_PASSWORD="${MYSQL_PASSWORD:-$(gen_passwd 64)}"
 
 # Environment
 timezone="${timezone:-Europe/Stockholm}"
+telemetry="${telemetry:-true}"
 
 # Assume SSL, will fetch different config if true
 ASSUME_SSL="${ASSUME_SSL:-false}"
@@ -64,35 +68,21 @@ user_firstname="${user_firstname:-}"
 user_lastname="${user_lastname:-}"
 user_password="${user_password:-}"
 
-if [[ -z "${email}" ]]; then
-  error "Email is required"
+missing=()
+
+for var in email user_email user_username user_firstname user_lastname user_password; do
+  if [[ -z "${!var}" ]]; then
+    missing+=("$var")
+  fi
+done
+
+if (( ${#missing[@]} > 0 )); then
+  for m in "${missing[@]}"; do
+    error "${m} is required"
+  done
   exit 1
 fi
 
-if [[ -z "${user_email}" ]]; then
-  error "User email is required"
-  exit 1
-fi
-
-if [[ -z "${user_username}" ]]; then
-  error "User username is required"
-  exit 1
-fi
-
-if [[ -z "${user_firstname}" ]]; then
-  error "User firstname is required"
-  exit 1
-fi
-
-if [[ -z "${user_lastname}" ]]; then
-  error "User lastname is required"
-  exit 1
-fi
-
-if [[ -z "${user_password}" ]]; then
-  error "User password is required"
-  exit 1
-fi
 
 # --------- Main installation functions -------- #
 
@@ -103,17 +93,35 @@ install_composer() {
 }
 
 ptdl_dl() {
+  # Ensure versioned URL is set (covers direct invocation without UI)
+  if fn_exists set_pterodactyl_urls; then set_pterodactyl_urls; fi
+  # Fallback if lib helper missing
+  if [[ -z "$PANEL_DL_URL" ]]; then
+    if [[ -n "$PTERODACTYL_VERSION" && "$PTERODACTYL_VERSION" != "latest" ]]; then
+      [[ "$PTERODACTYL_VERSION" != v* ]] && PTERODACTYL_VERSION="v$PTERODACTYL_VERSION"
+      PANEL_DL_URL="https://github.com/pterodactyl/panel/releases/download/$PTERODACTYL_VERSION/panel.tar.gz"
+    else
+      PANEL_DL_URL="https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz"
+    fi
+  fi
+
   output "Downloading pterodactyl panel files .. "
+  output "Version: ${PTERODACTYL_VERSION:-latest} (${PTERODACTYL_PANEL_VERSION:-latest})"
+  output "URL: $PANEL_DL_URL"
   mkdir -p /var/www/pterodactyl
   cd /var/www/pterodactyl || exit
 
-  curl -Lo panel.tar.gz "$PANEL_DL_URL"
+  if ! curl -fLo panel.tar.gz "$PANEL_DL_URL"; then
+    error "Failed to download panel from $PANEL_DL_URL"
+    error "Check that version $PTERODACTYL_VERSION exists at https://github.com/pterodactyl/panel/releases"
+    exit 1
+  fi
   tar -xzvf panel.tar.gz
   chmod -R 755 storage/* bootstrap/cache/
 
   cp .env.example .env
 
-  success "Downloaded pterodactyl panel files!"
+  success "Downloaded pterodactyl panel files! (version $PTERODACTYL_VERSION)"
 }
 
 install_composer_deps() {
@@ -145,6 +153,7 @@ configure() {
     --redis-host="localhost" \
     --redis-pass="null" \
     --redis-port="6379" \
+    --telemetry="$telemetry" \
     --settings-ui=true
 
   # Fill in environment:database credentials automatically
@@ -251,19 +260,13 @@ ubuntu_dep() {
 
   # Add Ubuntu universe repo
   add-apt-repository universe -y
-
-  # Add the MariaDB repo (bionic has mariadb version 10.1 and we need newer than that)
-  [ "$OS_VER_MAJOR" == "18" ] && curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | bash
-
-  # Add PPA for PHP (we need 8.1)
-  LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
 }
 
 debian_dep() {
   # Install deps for adding repos
   install_packages "dirmngr ca-certificates apt-transport-https lsb-release"
 
-  # Install PHP 8.1 using sury's repo
+  # Install PHP 8.3 using sury's repo
   curl -o /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg
   echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/php.list
 }
@@ -273,9 +276,9 @@ alma_rocky_dep() {
   install_packages "policycoreutils selinux-policy selinux-policy-targeted \
     setroubleshoot-server setools setools-console mcstrans"
 
-  # add remi repo (php8.1)
+  # add remi repo (php8.3)
   install_packages "epel-release http://rpms.remirepo.net/enterprise/remi-release-$OS_VER_MAJOR.rpm"
-  dnf module enable -y php:remi-8.1
+  dnf module enable -y php:remi-8.3
 }
 
 dep_install() {
@@ -289,12 +292,12 @@ dep_install() {
   case "$OS" in
   ubuntu | debian)
     [ "$OS" == "ubuntu" ] && ubuntu_dep
-    [ "$OS" == "debian" ] && debian_dep
+    debian_dep
 
     update_repos
 
     # Install dependencies
-    install_packages "php8.1 php8.1-{cli,common,gd,mysql,mbstring,bcmath,xml,fpm,curl,zip} \
+    install_packages "php8.3 php8.3-{cli,common,gd,mysql,mbstring,bcmath,xml,fpm,curl,zip} \
       mariadb-common mariadb-server mariadb-client \
       nginx \
       redis-server \
@@ -380,7 +383,7 @@ configure_nginx() {
 
   case "$OS" in
   ubuntu | debian)
-    PHP_SOCKET="/run/php/php8.1-fpm.sock"
+    PHP_SOCKET="/run/php/php8.3-fpm.sock"
     CONFIG_PATH_AVAIL="/etc/nginx/sites-available"
     CONFIG_PATH_ENABL="/etc/nginx/sites-enabled"
     ;;

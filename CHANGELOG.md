@@ -2,6 +2,61 @@
 
 This project follows the [semantic versioning](https://semver.org) convention. Changelog points should be divided into fixed, changed, or added.
 
+## v1.3.0 (released on 2026-06-09)
+
+### Fixed
+
+- [#567](https://github.com/pterodactyl-installer/pterodactyl-installer/pull/567) all: update copyright year to 2026
+
+### Added
+
+- [70083ab](https://github.com/pterodactyl-installer/pterodactyl-installer/commit/70083abbb8c854df99939f7a54ef738b39cfe12e) panel: add ubuntu 26.04 support
+- [54db4ce](https://github.com/pterodactyl-installer/pterodactyl-installer/commit/54db4cea783e7e45d97c16a3299c6e6e315a50a6) panel: add telemetry option
+
+## v1.2.0 (released on 2025-09-24)
+
+### Fixed
+
+- [a1016ac](https://github.com/pterodactyl-installer/pterodactyl-installer/commit/a1016ac8dfe0a833200b99f84e139063c05ba00b) install: Add back export to variables
+- [#523](https://github.com/pterodactyl-installer/pterodactyl-installer/pull/523) all: update copyright year to 2025
+- [#529](https://github.com/pterodactyl-installer/pterodactyl-installer/pull/529) panel: Europe/Kiev renamed to Europe/Kyiv
+
+### Added
+
+- [#543](https://github.com/pterodactyl-installer/pterodactyl-installer/pull/543) all: Add debian 13 support
+
+## v1.1.1 (released on 2024-11-15)
+
+### Fixed
+
+- [#514](https://github.com/pterodactyl-installer/pterodactyl-installer/pull/514) panel: Update PHP from 8.1 to 8.3 (thanks [@SuperEvilLuke](https://github.com/SuperEvilLuke) for contributing!)
+- [#502](https://github.com/pterodactyl-installer/pterodactyl-installer/pull/502) panel/wings: Added more checks and more verbose logging to uninstallation script. (thanks [QXIoa](https://github.com/QXIoa) for contributing!)
+
+## v1.1.0 (released on 2024-07-10)
+
+### Fixed
+
+- [#451](https://github.com/pterodactyl-installer/pterodactyl-installer/pull/451) all: Update copyright year to 2024 (thanks [@BeastGamer81](https://github.com/BeastGamer81) for contributing!).
+- [#452](https://github.com/pterodactyl-installer/pterodactyl-installer/issues/452) panel/wings: Replace mysql commands with mariadb
+- [#480](https://github.com/pterodactyl-installer/pterodactyl-installer/pull/480) panel: update default pteroq.service file
+
+### Added
+
+- [#467](https://github.com/pterodactyl-installer/pterodactyl-installer/issues/467) panel/wings: add support for Ubuntu 24.04
+
+## v1.0.0 (released on 2023-07-31)
+
+### Added
+
+- [#416](https://github.com/pterodactyl-installer/pterodactyl-installer/issues/416) panel/wings: add support for Debian 12 (thanks [@Linux123123](https://github.com/Linux123123) for contributing!).
+
+## v0.12.3 (released on 2023-02-18)
+
+### Fixed
+
+- [#385](https://github.com/pterodactyl-installer/pterodactyl-installer/issues/385) lib: Fix a bug that would cause the script to fail on some systems because missing paths in $PATH (thanks [@Linux123123](https://github.com/Linux123123) for contributing!).
+- [#392](https://github.com/pterodactyl-installer/pterodactyl-installer/issues/392) lib: Add back missing function `print_list` used in uninstall script (thanks [@Linux123123](https://github.com/Linux123123) for contributing!).
+
 ## v0.12.2 (released on 2022-12-18)
 
 ### Fixed
