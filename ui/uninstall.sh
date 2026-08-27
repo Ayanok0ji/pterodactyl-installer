@@ -46,36 +46,66 @@ fi
 
 export RM_PANEL=false
 export RM_WINGS=false
+export RM_SSL=false
 
 # --------------- Main functions --------------- #
 
 main() {
   welcome ""
 
-  if [ -d "/var/www/pterodactyl" ]; then
-    output "Panel installation has been detected."
-    echo -e -n "* Do you want to remove panel? (y/N): "
+  output "Pterodactyl Uninstallation Assistant"
+  output "Select the components you want to remove from this system."
+  echo ""
+
+  local panel_detected=false
+  local wings_detected=false
+
+  [ -d "/var/www/pterodactyl" ] || [ -f "/etc/nginx/sites-available/pterodactyl.conf" ] || [ -f "/etc/nginx/conf.d/pterodactyl.conf" ] || [ -f "/etc/systemd/system/pteroq.service" ] && panel_detected=true
+  [ -d "/etc/pterodactyl" ] || [ -f "/usr/local/bin/wings" ] || [ -f "/etc/systemd/system/wings.service" ] || [ -d "/var/lib/pterodactyl" ] && wings_detected=true
+
+  if [ "$panel_detected" == true ]; then
+    output "Panel installation detected on this system."
+    echo -e -n "* Do you want to uninstall and remove Pterodactyl Panel? (y/N): "
+    read -r RM_PANEL_INPUT
+    [[ "$RM_PANEL_INPUT" =~ [Yy] ]] && RM_PANEL=true
+  else
+    echo -e -n "* Panel was not detected. Run Panel cleanup anyway? (y/N): "
     read -r RM_PANEL_INPUT
     [[ "$RM_PANEL_INPUT" =~ [Yy] ]] && RM_PANEL=true
   fi
 
-  if [ -d "/etc/pterodactyl" ]; then
-    output "Wings installation has been detected."
-    warning "This will remove all the servers!"
-    echo -e -n "* Do you want to remove Wings (daemon)? (y/N): "
+  if [ "$wings_detected" == true ]; then
+    output "Wings installation detected on this system."
+    warning "Uninstalling Wings will stop and delete all game servers and Docker containers on this node!"
+    echo -e -n "* Do you want to uninstall and remove Pterodactyl Wings? (y/N): "
+    read -r RM_WINGS_INPUT
+    [[ "$RM_WINGS_INPUT" =~ [Yy] ]] && RM_WINGS=true
+  else
+    echo -e -n "* Wings was not detected. Run Wings cleanup anyway? (y/N): "
     read -r RM_WINGS_INPUT
     [[ "$RM_WINGS_INPUT" =~ [Yy] ]] && RM_WINGS=true
   fi
 
-  if [ "$RM_PANEL" == false ] && [ "$RM_WINGS" == false ]; then
-    error "Nothing to uninstall!"
+  if [ -d "/etc/letsencrypt" ]; then
+    output "Let's Encrypt SSL directory detected (/etc/letsencrypt)."
+    echo -e -n "* Do you want to remove Let's Encrypt SSL certificates (Certbot)? (y/N): "
+    read -r RM_SSL_INPUT
+    [[ "$RM_SSL_INPUT" =~ [Yy] ]] && RM_SSL=true
+  else
+    echo -e -n "* Do you want to clean up any Certbot / Let's Encrypt SSL files? (y/N): "
+    read -r RM_SSL_INPUT
+    [[ "$RM_SSL_INPUT" =~ [Yy] ]] && RM_SSL=true
+  fi
+
+  if [ "$RM_PANEL" == false ] && [ "$RM_WINGS" == false ] && [ "$RM_SSL" == false ]; then
+    error "Nothing selected to uninstall! System was not modified."
     exit 1
   fi
 
   summary
 
   # confirm uninstallation
-  echo -e -n "* Continue with uninstallation? (y/N): "
+  echo -e -n "* Are you sure you want to proceed with uninstallation? (y/N): "
   read -r CONFIRM
   if [[ "$CONFIRM" =~ [Yy] ]]; then
     run_installer "uninstall"
@@ -86,16 +116,18 @@ main() {
 }
 
 summary() {
-  print_brake 30
+  print_brake 40
   output "Uninstall panel? $RM_PANEL"
   output "Uninstall wings? $RM_WINGS"
-  print_brake 30
+  output "Remove SSL certificates? $RM_SSL"
+  print_brake 40
 }
 
 goodbye() {
   print_brake 62
-  [ "$RM_PANEL" == true ] && output "Panel uninstallation completed"
-  [ "$RM_WINGS" == true ] && output "Wings uninstallation completed"
+  [ "$RM_PANEL" == true ] && output "Panel uninstallation and cleanup completed."
+  [ "$RM_WINGS" == true ] && output "Wings uninstallation and cleanup completed."
+  [ "$RM_SSL" == true ] && output "Let's Encrypt / Certbot SSL cleanup completed."
   output "Thank you for using this script."
   print_brake 62
 }

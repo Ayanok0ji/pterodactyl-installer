@@ -44,26 +44,45 @@ fi
 
 # ------------------ Variables ----------------- #
 
-RM_PANEL="${RM_PANEL:-true}"
-RM_WINGS="${RM_WINGS:-true}"
+RM_PANEL="${RM_PANEL:-false}"
+RM_WINGS="${RM_WINGS:-false}"
+RM_SSL="${RM_SSL:-false}"
 
 # ---------- Uninstallation functions ---------- #
 
 rm_panel_files() {
   output "Removing panel files..."
-  rm -rf /var/www/pterodactyl /usr/local/bin/composer
-  [ "$OS" != "centos" ] && [ -L /etc/nginx/sites-enabled/pterodactyl.conf ] && unlink /etc/nginx/sites-enabled/pterodactyl.conf
-  [ "$OS" != "centos" ] && [ -f /etc/nginx/sites-available/pterodactyl.conf ] && rm -f /etc/nginx/sites-available/pterodactyl.conf
-  [ "$OS" != "centos" ] && [ ! -L /etc/nginx/sites-enabled/default ] && [ -f /etc/nginx/sites-available/default ] && ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
-  [ "$OS" == "centos" ] && [ -f /etc/nginx/conf.d/pterodactyl.conf ] && rm -f /etc/nginx/conf.d/pterodactyl.conf
-  systemctl restart nginx
-  success "Removed panel files."
+  rm -rf /var/www/pterodactyl
+
+  case "$OS" in
+  debian | ubuntu)
+    [ -L /etc/nginx/sites-enabled/pterodactyl.conf ] && rm -f /etc/nginx/sites-enabled/pterodactyl.conf
+    [ -f /etc/nginx/sites-available/pterodactyl.conf ] && rm -f /etc/nginx/sites-available/pterodactyl.conf
+    [ ! -L /etc/nginx/sites-enabled/default ] && [ -f /etc/nginx/sites-available/default ] && ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+    ;;
+  rocky | almalinux | centos)
+    [ -f /etc/nginx/conf.d/pterodactyl.conf ] && rm -f /etc/nginx/conf.d/pterodactyl.conf
+    ;;
+  esac
+
+  systemctl restart nginx 2>/dev/null || true
+  success "Removed panel files and webserver configuration."
 }
 
 rm_docker_containers() {
   output "Removing docker containers and images..."
 
-  docker system prune -a -f
+  if [ -x "$(command -v docker)" ]; then
+    local containers
+    containers=$(docker ps -aq 2>/dev/null || true)
+    if [ -n "$containers" ]; then
+      output "Stopping running containers..."
+      docker stop $containers 2>/dev/null || true
+      output "Removing containers..."
+      docker rm -f $containers 2>/dev/null || true
+    fi
+    docker system prune -a -f --volumes 2>/dev/null || true
+  fi
 
   success "Removed docker containers and images."
 }
@@ -71,49 +90,70 @@ rm_docker_containers() {
 rm_wings_files() {
   output "Removing wings files..."
 
-  systemctl disable --now wings
-  [ -f /etc/systemd/system/wings.service ] && rm -rf /etc/systemd/system/wings.service
+  systemctl stop wings 2>/dev/null || true
+  systemctl disable --now wings 2>/dev/null || true
+  [ -f /etc/systemd/system/wings.service ] && rm -f /etc/systemd/system/wings.service
+  systemctl daemon-reload 2>/dev/null || true
 
   [ -d /etc/pterodactyl ] && rm -rf /etc/pterodactyl
   [ -f /usr/local/bin/wings ] && rm -rf /usr/local/bin/wings
   [ -d /var/lib/pterodactyl ] && rm -rf /var/lib/pterodactyl
-  success "Removed wings files."
+  [ -d /tmp/pterodactyl ] && rm -rf /tmp/pterodactyl
+
+  success "Removed wings files and systemd service."
 }
 
 rm_services() {
   output "Removing services..."
-  systemctl disable --now pteroq
-  rm -rf /etc/systemd/system/pteroq.service
+
+  systemctl stop pteroq 2>/dev/null || true
+  systemctl disable --now pteroq 2>/dev/null || true
+  [ -f /etc/systemd/system/pteroq.service ] && rm -f /etc/systemd/system/pteroq.service
+  systemctl daemon-reload 2>/dev/null || true
+
   case "$OS" in
   debian | ubuntu)
-    systemctl disable --now redis-server
+    systemctl stop redis-server 2>/dev/null || true
     ;;
-  centos)
-    systemctl disable --now redis
-    systemctl disable --now php-fpm
-    rm -rf /etc/php-fpm.d/www-pterodactyl.conf
+  rocky | almalinux | centos)
+    systemctl stop redis 2>/dev/null || true
+    systemctl stop php-fpm 2>/dev/null || true
+    [ -f /etc/php-fpm.d/www-pterodactyl.conf ] && rm -f /etc/php-fpm.d/www-pterodactyl.conf
     ;;
   esac
+
   success "Removed services."
 }
 
 rm_cron() {
   output "Removing cron jobs..."
-  crontab -l | grep -vF "* * * * * php /var/www/pterodactyl/artisan schedule:run >> /dev/null 2>&1" | crontab -
+  if crontab -l 2>/dev/null | grep -q "artisan schedule:run"; then
+    crontab -l 2>/dev/null | grep -vF "artisan schedule:run" | crontab - 2>/dev/null || true
+  fi
   success "Removed cron jobs."
 }
 
 rm_database() {
-  output "Removing database..."
-  valid_db=$(mariadb -u root -e "SELECT schema_name FROM information_schema.schemata;" 2>/dev/null | grep -v -E -- 'schema_name|information_schema|performance_schema|mysql')
+  output "Checking for database..."
+  local db_cmd="mariadb"
+  type mariadb >/dev/null 2>&1 || db_cmd="mysql"
+
+  if ! type "$db_cmd" >/dev/null 2>&1; then
+    output "Database client ($db_cmd) not found, skipping database removal."
+    return
+  fi
+
+  local valid_db
+  valid_db=$($db_cmd -u root -e "SELECT schema_name FROM information_schema.schemata;" 2>/dev/null | grep -v -E -- 'schema_name|information_schema|performance_schema|mysql' || true)
   if [[ -z "$valid_db" ]]; then
     warning "No valid databases found."
     return
   fi
 
-  warning "Be careful! This database will be deleted!"
+  warning "Be careful! Selected database will be permanently deleted!"
+  local DATABASE=""
   if [[ "$valid_db" == *"panel"* ]]; then
-    echo -n "* Database called panel has been detected. Is it the pterodactyl database? (y/N): "
+    echo -n "* Database called 'panel' was detected. Delete this database? (y/N): "
     read -r is_panel
     if [[ "$is_panel" =~ [Yy] ]]; then
       DATABASE=panel
@@ -124,8 +164,8 @@ rm_database() {
     print_list "$valid_db"
   fi
 
-  while [ -z "$DATABASE" ] || [[ "$valid_db" != *"$DATABASE"* ]]; do
-    echo -n "* Choose the panel database (to skip don't input anything): "
+  while [ -z "$DATABASE" ]; do
+    echo -n "* Enter database name to delete (or press Enter to skip): "
     read -r database_input
     if [[ -n "$database_input" ]]; then
       if [[ "$valid_db" == *"$database_input"* ]]; then
@@ -139,22 +179,23 @@ rm_database() {
   done
 
   if [[ -n "$DATABASE" ]]; then
-    mariadb -u root -e "DROP DATABASE $DATABASE;" 2>/dev/null || warning "Failed to drop database $DATABASE."
+    $db_cmd -u root -e "DROP DATABASE \`$DATABASE\`;" 2>/dev/null && success "Database '$DATABASE' dropped." || warning "Failed to drop database '$DATABASE'."
   else
-    output "No database selected, skipping removal."
+    output "No database selected, skipping database removal."
   fi
 
-  # Exclude usernames User and root (Hope no one uses username User)
-  output "Removing database user..."
-  valid_users=$(mariadb -u root -e "SELECT user FROM mysql.user;" 2>/dev/null | grep -v -E -- 'user|root')
+  output "Checking for database user..."
+  local valid_users
+  valid_users=$($db_cmd -u root -e "SELECT user FROM mysql.user;" 2>/dev/null | grep -v -E -- 'user|root' || true)
   if [[ -z "$valid_users" ]]; then
-    warning "No valid database users found."
+    warning "No database users found to remove."
     return
   fi
 
-  warning "Be careful! This user will be deleted!"
+  warning "Be careful! Selected database user will be deleted!"
+  local DB_USER=""
   if [[ "$valid_users" == *"pterodactyl"* ]]; then
-    echo -n "* User called pterodactyl has been detected. Is it the pterodactyl user? (y/N): "
+    echo -n "* Database user 'pterodactyl' was detected. Delete this user? (y/N): "
     read -r is_user
     if [[ "$is_user" =~ [Yy] ]]; then
       DB_USER=pterodactyl
@@ -165,8 +206,8 @@ rm_database() {
     print_list "$valid_users"
   fi
 
-  while [ -z "$DB_USER" ] || [[ "$valid_users" != *"$DB_USER"* ]]; do
-    echo -n "* Choose the panel user (to skip don't input anything): "
+  while [ -z "$DB_USER" ]; do
+    echo -n "* Enter database username to delete (or press Enter to skip): "
     read -r user_input
     if [[ -n "$user_input" ]]; then
       if [[ "$valid_users" == *"$user_input"* ]]; then
@@ -180,15 +221,37 @@ rm_database() {
   done
 
   if [[ -n "$DB_USER" ]]; then
-    mariadb -u root -e "DROP USER '$DB_USER'@'127.0.0.1';" 2>/dev/null || warning "Failed to drop user $DB_USER."
+    $db_cmd -u root -e "DROP USER '$DB_USER'@'127.0.0.1';" 2>/dev/null || true
+    $db_cmd -u root -e "DROP USER '$DB_USER'@'%';" 2>/dev/null || true
+    $db_cmd -u root -e "DROP USER '$DB_USER'@'localhost';" 2>/dev/null || true
+    $db_cmd -u root -e "FLUSH PRIVILEGES;" 2>/dev/null || true
+    success "Database user '$DB_USER' removed."
   else
-    output "No user selected, skipping removal."
+    output "No user selected, skipping user removal."
   fi
-
-  mariadb -u root -e "FLUSH PRIVILEGES;" 2>/dev/null
-  success "Removed database and database user (if selected)."
 }
 
+rm_ssl() {
+  output "Removing Let's Encrypt / Certbot SSL certificates..."
+  if [ -d "/etc/letsencrypt" ]; then
+    if [ -x "$(command -v certbot)" ]; then
+      certbot certificates 2>/dev/null | grep "Certificate Name:" | awk '{print $3}' | while read -r cert_name; do
+        if [ -n "$cert_name" ]; then
+          certbot delete --cert-name "$cert_name" --non-interactive 2>/dev/null || true
+        fi
+      done
+    fi
+    rm -rf /etc/letsencrypt/live
+    rm -rf /etc/letsencrypt/archive
+    rm -rf /etc/letsencrypt/renewal
+    rm -rf /etc/letsencrypt/renewal-hooks
+    rm -rf /etc/letsencrypt
+    rm -rf /var/log/letsencrypt
+    success "Removed Let's Encrypt / Certbot SSL certificates."
+  else
+    output "No Let's Encrypt certificates directory found."
+  fi
+}
 
 # --------------- Main functions --------------- #
 
@@ -199,6 +262,7 @@ perform_uninstall() {
   [ "$RM_PANEL" == true ] && rm_services
   [ "$RM_WINGS" == true ] && rm_docker_containers
   [ "$RM_WINGS" == true ] && rm_wings_files
+  [ "$RM_SSL" == true ] && rm_ssl
 
   return 0
 }
