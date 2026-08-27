@@ -34,8 +34,8 @@ set -e
 #                                                                                    #
 ######################################################################################
 
-export GITHUB_SOURCE="v1.3.0"
-export SCRIPT_RELEASE="v1.3.0"
+export GITHUB_SOURCE="main"
+export SCRIPT_RELEASE="main"
 # Fork default: Ayanok0ji's repo. Upstream: https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer
 export GITHUB_BASE_URL="${GITHUB_BASE_URL:-https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer}"
 # To use upstream instead: export GITHUB_BASE_URL="https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer"
