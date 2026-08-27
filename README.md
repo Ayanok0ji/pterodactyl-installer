@@ -1,61 +1,31 @@
-# :bird: pterodactyl-installer — Fork by Ayanok0ji
+# :bird: pterodactyl-installer
 
-[![License: GPL v3](https://img.shields.io/github/license/pterodactyl-installer/pterodactyl-installer)](LICENSE)
-[![made-with-bash](https://img.shields.io/badge/-Made%20with%20Bash-1f425f.svg?logo=bash)](#)
-[![Fork](https://img.shields.io/badge/fork-Ayanok0ji-blue)](https://github.com/Ayanok0ji/pterodactyl-installer)
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/Ayanok0ji/pterodactyl-installer?include_prereleases)](https://github.com/Ayanok0ji/pterodactyl-installer/releases)
+[![made-with-bash](https://img.shields.io/badge/-Made%20with%20Bash-1f425f.svg)](https://www.gnu.org/software/bash/)
 
-> **CREDITS / CCTO / DISCLAIMER**
->
-> This is a **fork** maintained by **[Ayanok0ji](https://github.com/Ayanok0ji)**.
->
-> Original project: **[pterodactyl-installer/pterodactyl-installer](https://github.com/pterodactyl-installer/pterodactyl-installer)** by **Vilhelm Prytz** ([vilhelm@prytznet.se](mailto:vilhelm@prytznet.se)) and contributors, licensed under **GPL-3.0**.
->
-> - Original one-liner `bash <(curl -s https://pterodactyl-installer.se)` and domain `https://pterodactyl-installer.se` are **NOT** owned by Ayanok0ji. CCTO / Credit to the original authors.
-> - This fork is **NOT** associated with the official [Pterodactyl Project](https://pterodactyl.io/).
-> - GPL-3.0 requires attribution and preservation of original copyright — see [LICENSE](LICENSE) and headers in each script.
->
-> **Fork repo (this):** `https://github.com/Ayanok0ji/pterodactyl-installer` — please use the fork one-liner below.
-
-Unofficial scripts for installing Pterodactyl Panel & Wings. **This fork adds version selection — install ANY version** (e.g., `1.11.3`, `1.11.1`, `1.10.7`, `v1.12.0`, etc.) for Panel + Wings, while keeping `latest` as default.
+Unofficial scripts for installing Pterodactyl Panel & Wings with **custom version selection** support (e.g., `1.11.3`, `1.11.1`, `latest`, or any release).
 
 Read more about [Pterodactyl](https://pterodactyl.io/) here. This script is not associated with the official Pterodactyl Project.
 
-## ✨ What's new in this fork vs upstream
+## Credits to Owner (CCTO) & Attribution ✨
 
-- **Install ANY Pterodactyl version for Panel & Wings (same tag by default)** — installer fetches up to 30 recent releases from GitHub (`https://api.github.com/repos/pterodactyl/panel/releases`) and shows a menu:
-  ```
-  [0] latest  (recommended - always newest stable)
-  [1] v1.11.9
-  [2] v1.11.8
-  [3] v1.11.3
-  [4] v1.11.1
-  ...
-  * Choose version [0] or type version [latest]: 3  -> installs v1.11.3 for BOTH panel & wings
-  * Choose version [0] or type version [latest]: 1.11.3  -> same
-  * Choose version [0] or type version [latest]: v1.11.1 -> installs v1.11.1
-  ```
-  You can pick a number from the list OR type any custom tag like `1.11.3`, `v1.11.3`, `1.11.1`, `1.10.7`, `v1.8.2`, even pre-releases if they exist. Same version is used for **both** panel and wings (as requested). Or press **ENTER** for `latest`.
-  - `latest` → `https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz` and `.../wings/releases/latest/download/wings_linux_<arch>`
-  - `1.11.3` → `https://github.com/pterodactyl/panel/releases/download/v1.11.3/panel.tar.gz` and `.../wings/releases/download/v1.11.3/wings_linux_<arch>`
-  - `1.10.7` → `.../download/v1.10.7/panel.tar.gz` (any version works)
-  - Env var for automation: `PTERODACTYL_VERSION=1.11.3 bash install.sh` / `PTERODACTYL_VERSION=v1.11.1 bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)` / `PTERODACTYL_VERSION=any_tag ...`
-  - If API is offline/rate-limited, falls back to manual input
-  - Advanced: `PTERODACTYL_PANEL_VERSION=v1.11.3 PTERODACTYL_WINGS_VERSION=v1.11.5` to set panel/wings separately
-- **Fork attribution headers** in every script to avoid copyright confusion (GPL-3.0 compliant).
-- Non-interactive / CI friendly — can pre-set version via env var.
+> [!NOTE]
+> This repository is a customized fork maintained by [Ayanok0ji](https://github.com/Ayanok0ji).
+> 
+> **Credits to Owner (CCTO)**:
+> - Originally created by **[Vilhelm Prytz](https://github.com/vilhelmprytz)** (`<vilhelm@prytznet.se>`) and contributors at **[pterodactyl-installer/pterodactyl-installer](https://github.com/pterodactyl-installer/pterodactyl-installer)**.
+> - Distributed under the **GNU General Public License v3.0 (GPLv3)**.
+> - Full credit goes to the original authors and maintainers for the core installer framework.
 
-## Features (upstream)
+## Features
 
+- **Select Any Version**: Choose specific versions for Pterodactyl Panel and Wings (e.g. `1.11.3`, `1.11.1`, `1.14.0`, or `latest`).
 - Automatic installation of the Pterodactyl Panel (dependencies, database, cronjob, nginx).
 - Automatic installation of the Pterodactyl Wings (Docker, systemd).
 - Panel: (optional) automatic configuration of Let's Encrypt.
 - Panel: (optional) automatic configuration of firewall.
 - Uninstallation support for both panel and wings.
-
-## Help and support
-
-- For upstream help: [Discord Chat](https://pterodactyl-installer.se/discord) (original project).
-- For this fork: open an issue at `https://github.com/Ayanok0ji/pterodactyl-installer/issues` or contact Ayanok0ji on GitHub.
 
 ## Supported installations
 
@@ -90,40 +60,13 @@ _\* Indicates an operating system and release that previously was supported by t
 
 ## Using the installation scripts
 
-### This fork (Ayanok0ji) — recommended if you want version selection (ANY version)
+To use the installation scripts, simply run this command as root:
 
 ```bash
-# Interactive — shows menu of 30 recent versions + lets you type ANY version
-bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
-# Example menu: [0] latest, [1] v1.11.9, [2] v1.11.3, [3] v1.11.1 ... -> pick number or type 1.10.7
-
-# Non-interactive examples (any version)
-PTERODACTYL_VERSION=1.11.3 bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
-PTERODACTYL_VERSION=v1.11.1 bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
-PTERODACTYL_VERSION=1.10.7 bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
-PTERODACTYL_VERSION=latest bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
-# Advanced: different panel/wings versions
-PTERODACTYL_PANEL_VERSION=v1.11.3 PTERODACTYL_WINGS_VERSION=v1.11.1 bash <(curl -sSL https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
+bash <(curl -s https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
 ```
-
-The script will ask:
-
-1. What to install: panel / wings / both
-2. **Pterodactyl version** — shows 30 recent tags + `[0] latest`. Type number (`3`) or type any tag (`1.10.7`, `v1.11.3`, `latest`). For "both", SAME version applies to panel + wings by default.
-
-If the selected version does not exist (e.g., typo), the download will fail with a clear error and a link to `https://github.com/pterodactyl/panel/releases` and `https://github.com/pterodactyl/wings/releases`.
-
-### Upstream (original, not this fork)
-
-```bash
-bash <(curl -s https://pterodactyl-installer.se)
-```
-
-> Note: This domain and the repo `https://github.com/pterodactyl-installer/pterodactyl-installer` are **not** owned by Ayanok0ji. CCTO to original authors.
 
 _Note: On some systems, it's required to be already logged in as root before executing the one-line command (where `sudo` is in front of the command does not work)._
-
-Here is a [YouTube video](https://www.youtube.com/watch?v=E8UJhyUFoHM) that illustrates the installation process.
 
 ## Firewall setup
 
@@ -135,53 +78,16 @@ The installation scripts can install and configure a firewall for you. The scrip
 
 To test the script, we use [Vagrant](https://www.vagrantup.com). With Vagrant, you can quickly get a fresh machine up and running to test the script.
 
-If you want to test the script on all supported installations in one go, just run the following.
-
-```bash
-vagrant up
-```
-
-If you only want to test a specific distribution, you can run the following.
-
 ```bash
 vagrant up <name>
 ```
 
-Replace name with one of the following (supported installations).
+Replace `<name>` with one of the supported installations (e.g. `ubuntu_jammy`, `debian_bookworm`, `rockylinux_9`).
 
-- `ubuntu_jammy`
-- `debian_bullseye`
-- `debian_buster`
-- `debian_bookworm`
-- `debian_trixie`
-- `almalinux_8`
-- `almalinux_9`
-- `rockylinux_8`
-- `rockylinux_9`
+## Original Project Contributors ✨
 
-Then you can use `vagrant ssh <name of machine>` to SSH into the box. The project directory will be mounted in `/vagrant` so you can quickly modify the script locally and then test the changes by running the script from `/vagrant/installers/panel.sh` and `/vagrant/installers/wings.sh` respectively.
-
-### Creating a release
-
-In `install.sh` github source and script release variables should change every release. Firstly, update the `CHANGELOG.md` so that the release date and release tag are both displayed. No changes should be made to the changelog points themselves. Secondly, update `GITHUB_SOURCE` and `SCRIPT_RELEASE` in `install.sh`. Finally, you can now push a commit with the message `Release vX.Y.Z`. Create a release on GitHub. See [this commit](https://github.com/pterodactyl-installer/pterodactyl-installer/commit/90aaae10785f1032fdf90b216a4a8d8ca64e6d44) for reference.
-
-## License & Attribution
-
-- **License:** GPL-3.0 — see [LICENSE](LICENSE)
-- **Upstream Copyright (C) 2018 - 2026, Vilhelm Prytz, <vilhelm@prytznet.se>** and contributors
-- **Fork modifications Copyright (C) 2026, Ayanok0ji** — `https://github.com/Ayanok0ji`
-
-Per GPL-3.0 Sec. 4 & 5, this fork preserves original copyright notices, adds a prominent notice of modification (date + fork author), and keeps the license.
-
-## Contributors ✨
-
-Upstream:
+Copyright (C) 2018 - 2026, Vilhelm Prytz, <vilhelm@prytznet.se>, and contributors!
 
 - Created by [Vilhelm Prytz](https://github.com/vilhelmprytz)
 - Maintained by [Linux123123](https://github.com/Linux123123)
-
-Thanks to the Discord moderators [sam1370](https://github.com/sam1370), [Linux123123](https://github.com/Linux123123) and [sinjs](https://github.com/sinjs) for helping on the Discord server!
-
-Fork:
-
-- Modified by [Ayanok0ji](https://github.com/Ayanok0ji) — added ANY version selection (menu of 30 + custom input, panel & wings same tag) and fork attribution.
+- Customizations by [Ayanok0ji](https://github.com/Ayanok0ji)

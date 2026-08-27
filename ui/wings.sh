@@ -6,8 +6,13 @@ set -e
 #                                                                                    #
 # Project 'pterodactyl-installer'                                                    #
 #                                                                                    #
-# Copyright (C) 2018 - 2026, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
-# Fork modifications Copyright (C) 2026, Ayanok0ji <https://github.com/Ayanok0ji>    #
+# Forked & Customized by Ayanok0ji:                                                  #
+# https://github.com/Ayanok0ji/pterodactyl-installer                                 #
+#                                                                                    #
+# Credits to Owner (CCTO):                                                           #
+# Originally created by Vilhelm Prytz, <vilhelm@prytznet.se>                         #
+# Copyright (C) 2018 - 2026, Vilhelm Prytz and pterodactyl-installer contributors    #
+# https://github.com/pterodactyl-installer/pterodactyl-installer                     #
 #                                                                                    #
 #   This program is free software: you can redistribute it and/or modify             #
 #   it under the terms of the GNU General Public License as published by             #
@@ -22,12 +27,10 @@ set -e
 #   You should have received a copy of the GNU General Public License                #
 #   along with this program.  If not, see <https://www.gnu.org/licenses/>.           #
 #                                                                                    #
-# https://github.com/pterodactyl-installer/pterodactyl-installer/blob/master/LICENSE #
+# https://github.com/Ayanok0ji/pterodactyl-installer/blob/master/LICENSE             #
 #                                                                                    #
 # This script is not associated with the official Pterodactyl Project.               #
-# https://github.com/pterodactyl-installer/pterodactyl-installer                     #
-# Fork: https://github.com/Ayanok0ji/pterodactyl-installer                           #
-# Original project CCTO: Vilhelm Prytz & contributors                                #
+# https://github.com/Ayanok0ji/pterodactyl-installer                                 #
 #                                                                                    #
 ######################################################################################
 
@@ -35,7 +38,7 @@ set -e
 fn_exists() { declare -F "$1" >/dev/null; }
 if ! fn_exists lib_loaded; then
   # shellcheck source=lib/lib.sh
-  source /tmp/lib.sh || source <(curl -fSsL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/main/lib/lib.sh" 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/main/lib/lib.sh" 2>/dev/null || curl -sSL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh)
+  source /tmp/lib.sh || source <(curl -sSL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh)
   ! fn_exists lib_loaded && echo "* ERROR: Could not load lib script" && exit 1
 fi
 
@@ -130,17 +133,53 @@ main() {
 
   welcome "wings"
 
-  # ---- Version selection (fork feature) ----
-  if fn_exists ask_pterodactyl_version; then
-    ask_pterodactyl_version
-  elif [[ -z "$PTERODACTYL_VERSION" ]]; then
-    echo -n "* Enter Pterodactyl version for wings [latest] (e.g., 1.11.3): "
-    read -r PTERODACTYL_VERSION
-    [ -z "$PTERODACTYL_VERSION" ] && PTERODACTYL_VERSION="latest"
-    export PTERODACTYL_VERSION
+  check_virt
+
+  # Version selection
+  local default_wings_version="${PTERODACTYL_WINGS_VERSION:-latest}"
+  if [ -f /tmp/pterodactyl_installer_version ]; then
+    local saved_ver
+    saved_ver=$(head -n 1 /tmp/pterodactyl_installer_version | tr -d '[:space:]')
+    [ -n "$saved_ver" ] && default_wings_version="$saved_ver"
   fi
 
-  check_virt
+  local recent_wings_versions
+  recent_wings_versions=$(get_recent_releases "pterodactyl/wings")
+  [ -n "$recent_wings_versions" ] && output "Recent releases: $recent_wings_versions"
+
+  local chosen_wings_version=""
+  while [ -z "$chosen_wings_version" ]; do
+    echo -n "* Enter Pterodactyl Wings version (e.g. 1.11.3, 1.11.1, or 'latest') [$default_wings_version]: "
+    read -r version_input
+    [ -z "$version_input" ] && version_input="$default_wings_version"
+
+    local formatted_ver
+    formatted_ver=$(format_version "$version_input")
+
+    if [ "$formatted_ver" == "latest" ]; then
+      set_wings_version "latest"
+      chosen_wings_version="$PTERODACTYL_WINGS_VERSION"
+    else
+      local test_url="https://github.com/pterodactyl/wings/releases/download/${formatted_ver}/wings_linux_${ARCH}"
+      output "Verifying wings release ($formatted_ver)..."
+      if verify_release_url "$test_url"; then
+        set_wings_version "$formatted_ver"
+        chosen_wings_version="$formatted_ver"
+      else
+        warning "Release $formatted_ver was not found at $test_url"
+        echo -n "* Use this version anyway? (y/N): "
+        read -r force_ver
+        if [[ "$force_ver" =~ [Yy] ]]; then
+          set_wings_version "$formatted_ver"
+          chosen_wings_version="$formatted_ver"
+        fi
+      fi
+    fi
+  done
+
+  export PTERODACTYL_WINGS_VERSION="$chosen_wings_version"
+  output "Selected Pterodactyl Wings version: $PTERODACTYL_WINGS_VERSION"
+  print_brake 72
 
   echo "* "
   echo "* The installer will install Docker, required dependencies for Wings"
@@ -183,7 +222,7 @@ main() {
       ASK=false
 
       [ -z "$FQDN" ] && error "FQDN cannot be empty"                                                            # check if FQDN is empty
-      bash <(curl -fSsL "$GITHUB_URL"/lib/verify-fqdn.sh 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/main/lib/verify-fqdn.sh" 2>/dev/null || curl -s "$GITHUB_URL"/lib/verify-fqdn.sh) "$FQDN" || ASK=true                                      # check if FQDN is valid
+      bash <(curl -s "$GITHUB_URL"/lib/verify-fqdn.sh) "$FQDN" || ASK=true                                      # check if FQDN is valid
       [ -d "/etc/letsencrypt/live/$FQDN/" ] && error "A certificate with this FQDN already exists!" && ASK=true # check if cert exists
 
       [ "$ASK" == true ] && FQDN=""
@@ -207,11 +246,7 @@ main() {
     done
   fi
 
-  echo ""
-  output "Selected Pterodactyl wings version: $PTERODACTYL_WINGS_VERSION (requested: $PTERODACTYL_VERSION)"
-  output "Wings download URL: ${WINGS_DL_BASE_URL}${ARCH}"
-  echo ""
-  echo -n "* Proceed with installation? (y/N): "
+  echo -n "* Proceed with installation of Wings ($PTERODACTYL_WINGS_VERSION)? (y/N): "
 
   read -r CONFIRM
   if [[ "$CONFIRM" =~ [Yy] ]]; then
@@ -225,7 +260,7 @@ main() {
 function goodbye {
   echo ""
   print_brake 70
-  echo "* Wings installation completed"
+  echo "* Wings ($PTERODACTYL_WINGS_VERSION) installation completed"
   echo "*"
   echo "* To continue, you need to configure Wings to run with your panel"
   echo "* Please refer to the official guide, $(hyperlink 'https://pterodactyl.io/wings/1.0/installing.html#configure')"

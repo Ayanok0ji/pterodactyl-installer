@@ -6,8 +6,13 @@ set -e
 #                                                                                    #
 # Project 'pterodactyl-installer'                                                    #
 #                                                                                    #
-# Copyright (C) 2018 - 2026, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
-# Fork modifications Copyright (C) 2026, Ayanok0ji <https://github.com/Ayanok0ji>    #
+# Forked & Customized by Ayanok0ji:                                                  #
+# https://github.com/Ayanok0ji/pterodactyl-installer                                 #
+#                                                                                    #
+# Credits to Owner (CCTO):                                                           #
+# Originally created by Vilhelm Prytz, <vilhelm@prytznet.se>                         #
+# Copyright (C) 2018 - 2026, Vilhelm Prytz and pterodactyl-installer contributors    #
+# https://github.com/pterodactyl-installer/pterodactyl-installer                     #
 #                                                                                    #
 #   This program is free software: you can redistribute it and/or modify             #
 #   it under the terms of the GNU General Public License as published by             #
@@ -22,12 +27,10 @@ set -e
 #   You should have received a copy of the GNU General Public License                #
 #   along with this program.  If not, see <https://www.gnu.org/licenses/>.           #
 #                                                                                    #
-# https://github.com/pterodactyl-installer/pterodactyl-installer/blob/master/LICENSE #
+# https://github.com/Ayanok0ji/pterodactyl-installer/blob/master/LICENSE             #
 #                                                                                    #
 # This script is not associated with the official Pterodactyl Project.               #
-# https://github.com/pterodactyl-installer/pterodactyl-installer                     #
-# Fork: https://github.com/Ayanok0ji/pterodactyl-installer                           #
-# Original project CCTO: Vilhelm Prytz & contributors                                #
+# https://github.com/Ayanok0ji/pterodactyl-installer                                 #
 #                                                                                    #
 ######################################################################################
 
@@ -35,7 +38,7 @@ set -e
 fn_exists() { declare -F "$1" >/dev/null; }
 if ! fn_exists lib_loaded; then
   # shellcheck source=lib/lib.sh
-  source /tmp/lib.sh || source <(curl -fSsL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/main/lib/lib.sh" 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/main/lib/lib.sh" 2>/dev/null || curl -sSL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh)
+  source /tmp/lib.sh || source <(curl -sSL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh)
   ! fn_exists lib_loaded && echo "* ERROR: Could not load lib script" && exit 1
 fi
 
@@ -131,20 +134,50 @@ main() {
 
   welcome "panel"
 
-  # ---- Version selection (fork feature) ----
-  # If install.sh already set PTERODACTYL_VERSION, this will just apply it.
-  # If running UI directly (e.g., bash <(curl .../ui/panel.sh)), prompt here.
-  if fn_exists ask_pterodactyl_version; then
-    ask_pterodactyl_version
-  elif [[ -z "$PTERODACTYL_VERSION" ]]; then
-    # Fallback if lib helper missing (old lib.sh)
-    echo -n "* Enter Pterodactyl version for panel [latest] (e.g., 1.11.3): "
-    read -r PTERODACTYL_VERSION
-    [ -z "$PTERODACTYL_VERSION" ] && PTERODACTYL_VERSION="latest"
-    export PTERODACTYL_VERSION
-  fi
-
   check_os_x86_64
+
+  # Select version
+  local recent_versions
+  recent_versions=$(get_recent_releases "pterodactyl/panel")
+  [ -n "$recent_versions" ] && output "Recent releases: $recent_versions"
+
+  local default_version="${PTERODACTYL_PANEL_VERSION:-latest}"
+  local chosen_version=""
+
+  while [ -z "$chosen_version" ]; do
+    echo -n "* Enter Pterodactyl Panel version (e.g. 1.11.3, 1.11.1, or 'latest') [$default_version]: "
+    read -r version_input
+    [ -z "$version_input" ] && version_input="$default_version"
+
+    local formatted_ver
+    formatted_ver=$(format_version "$version_input")
+
+    if [ "$formatted_ver" == "latest" ]; then
+      set_panel_version "latest"
+      chosen_version="$PTERODACTYL_PANEL_VERSION"
+    else
+      local test_url="https://github.com/pterodactyl/panel/releases/download/${formatted_ver}/panel.tar.gz"
+      output "Verifying panel release ($formatted_ver)..."
+      if verify_release_url "$test_url"; then
+        set_panel_version "$formatted_ver"
+        chosen_version="$formatted_ver"
+      else
+        warning "Release $formatted_ver was not found at $test_url"
+        echo -n "* Use this version anyway? (y/N): "
+        read -r force_ver
+        if [[ "$force_ver" =~ [Yy] ]]; then
+          set_panel_version "$formatted_ver"
+          chosen_version="$formatted_ver"
+        fi
+      fi
+    fi
+  done
+
+  # Persist chosen version so Wings can use the same version by default
+  echo "$chosen_version" > /tmp/pterodactyl_installer_version
+  export PTERODACTYL_PANEL_VERSION="$chosen_version"
+  output "Selected Pterodactyl Panel version: $PTERODACTYL_PANEL_VERSION"
+  print_brake 72
 
   # set database credentials
   output "Database configuration."
@@ -170,14 +203,7 @@ main() {
   rand_pw=$(gen_passwd 64)
   password_input MYSQL_PASSWORD "Password (press enter to use randomly generated password): " "MySQL password cannot be empty" "$rand_pw"
 
-  # Fetch valid_timezones with fallback to refs/heads
-  if ! readarray -t valid_timezones <<<"$(curl -fSsL "$GITHUB_URL"/configs/valid_timezones.txt 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/main/configs/valid_timezones.txt" 2>/dev/null || curl -s "$GITHUB_URL"/configs/valid_timezones.txt)"; then
-    valid_timezones=()
-  fi
-  # fallback if still empty try upstream
-  if [ ${#valid_timezones[@]} -eq 0 ]; then
-    readarray -t valid_timezones <<<"$(curl -fSsL https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/master/configs/valid_timezones.txt 2>/dev/null || echo "Europe/Stockholm")"
-  fi
+  readarray -t valid_timezones <<<"$(curl -s "$GITHUB_URL"/configs/valid_timezones.txt)"
   output "List of valid timezones here $(hyperlink "https://www.php.net/manual/en/timezones.php")"
 
   while [ -z "$timezone" ]; do
@@ -220,10 +246,8 @@ main() {
     [ "$CONFIGURE_LETSENCRYPT" == false ] && ask_assume_ssl
   fi
 
-  # verify FQDN if user has selected to assume SSL or configure Let's Encrypt (with refs/heads fallback)
-  if [ "$CONFIGURE_LETSENCRYPT" == true ] || [ "$ASSUME_SSL" == true ]; then
-    bash <(curl -fSsL "$GITHUB_URL"/lib/verify-fqdn.sh 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/main/lib/verify-fqdn.sh" 2>/dev/null || curl -s "$GITHUB_URL"/lib/verify-fqdn.sh) "$FQDN"
-  fi
+  # verify FQDN if user has selected to assume SSL or configure Let's Encrypt
+  [ "$CONFIGURE_LETSENCRYPT" == true ] || [ "$ASSUME_SSL" == true ] && bash <(curl -s "$GITHUB_URL"/lib/verify-fqdn.sh) "$FQDN"
 
   # ask telemetry preference
   ask_telemetry
@@ -244,8 +268,7 @@ main() {
 
 summary() {
   print_brake 62
-  output "Pterodactyl panel $PTERODACTYL_PANEL_VERSION (selected: $PTERODACTYL_VERSION) with nginx on $OS"
-  output "Panel download URL: $PANEL_DL_URL"
+  output "Pterodactyl panel $PTERODACTYL_PANEL_VERSION with nginx on $OS"
   output "Database name: $MYSQL_DB"
   output "Database user: $MYSQL_USER"
   output "Database password: (censored)"

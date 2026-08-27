@@ -6,8 +6,13 @@ set -e
 #                                                                                    #
 # Project 'pterodactyl-installer'                                                    #
 #                                                                                    #
-# Copyright (C) 2018 - 2026, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
-# Fork modifications Copyright (C) 2026, Ayanok0ji <https://github.com/Ayanok0ji>    #
+# Forked & Customized by Ayanok0ji:                                                  #
+# https://github.com/Ayanok0ji/pterodactyl-installer                                 #
+#                                                                                    #
+# Credits to Owner (CCTO):                                                           #
+# Originally created by Vilhelm Prytz, <vilhelm@prytznet.se>                         #
+# Copyright (C) 2018 - 2026, Vilhelm Prytz and pterodactyl-installer contributors    #
+# https://github.com/pterodactyl-installer/pterodactyl-installer                     #
 #                                                                                    #
 #   This program is free software: you can redistribute it and/or modify             #
 #   it under the terms of the GNU General Public License as published by             #
@@ -22,12 +27,10 @@ set -e
 #   You should have received a copy of the GNU General Public License                #
 #   along with this program.  If not, see <https://www.gnu.org/licenses/>.           #
 #                                                                                    #
-# https://github.com/pterodactyl-installer/pterodactyl-installer/blob/master/LICENSE #
+# https://github.com/Ayanok0ji/pterodactyl-installer/blob/master/LICENSE             #
 #                                                                                    #
 # This script is not associated with the official Pterodactyl Project.               #
-# https://github.com/pterodactyl-installer/pterodactyl-installer                     #
-# Fork: https://github.com/Ayanok0ji/pterodactyl-installer                           #
-# Original project CCTO: Vilhelm Prytz & contributors                                #
+# https://github.com/Ayanok0ji/pterodactyl-installer                                 #
 #                                                                                    #
 ######################################################################################
 
@@ -35,11 +38,17 @@ set -e
 fn_exists() { declare -F "$1" >/dev/null; }
 if ! fn_exists lib_loaded; then
   # shellcheck source=lib/lib.sh
-  source /tmp/lib.sh || source <(curl -fSsL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/main/lib/lib.sh" 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/main/lib/lib.sh" 2>/dev/null || curl -sSL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh)
+  source /tmp/lib.sh || source <(curl -sSL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh)
   ! fn_exists lib_loaded && echo "* ERROR: Could not load lib script" && exit 1
 fi
 
 # ------------------ Variables ----------------- #
+
+# Wings version
+if [ -z "$PTERODACTYL_WINGS_VERSION" ] && [ -f /tmp/pterodactyl_installer_version ]; then
+  PTERODACTYL_WINGS_VERSION=$(head -n 1 /tmp/pterodactyl_installer_version | tr -d '[:space:]')
+fi
+set_wings_version "${PTERODACTYL_WINGS_VERSION:-latest}"
 
 INSTALL_MARIADB="${INSTALL_MARIADB:-false}"
 
@@ -115,40 +124,23 @@ dep_install() {
 }
 
 ptdl_dl() {
-  if fn_exists set_pterodactyl_urls; then set_pterodactyl_urls; fi
-  if [[ -z "$WINGS_DL_BASE_URL" ]]; then
-    if [[ -n "$PTERODACTYL_VERSION" && "$PTERODACTYL_VERSION" != "latest" ]]; then
-      [[ "$PTERODACTYL_VERSION" != v* ]] && PTERODACTYL_VERSION="v$PTERODACTYL_VERSION"
-      WINGS_DL_BASE_URL="https://github.com/pterodactyl/wings/releases/download/$PTERODACTYL_VERSION/wings_linux_"
-    else
-      WINGS_DL_BASE_URL="https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_"
-    fi
-  fi
-
-  echo "* Downloading Pterodactyl Wings.. "
-  output "Version: ${PTERODACTYL_VERSION:-latest} (${PTERODACTYL_WINGS_VERSION:-latest})"
-  output "URL: ${WINGS_DL_BASE_URL}${ARCH}"
+  output "Downloading Pterodactyl Wings ($PTERODACTYL_WINGS_VERSION)... "
 
   mkdir -p /etc/pterodactyl
-  if ! curl -fL -o /usr/local/bin/wings "${WINGS_DL_BASE_URL}${ARCH}"; then
-    error "Failed to download wings from ${WINGS_DL_BASE_URL}${ARCH}"
-    error "Check that version $PTERODACTYL_VERSION exists at https://github.com/pterodactyl/wings/releases"
+  if ! curl -fL -o /usr/local/bin/wings "$WINGS_DL_BASE_URL$ARCH"; then
+    error "Failed to download Pterodactyl Wings from $WINGS_DL_BASE_URL$ARCH"
     exit 1
   fi
 
   chmod u+x /usr/local/bin/wings
 
-  success "Pterodactyl Wings downloaded successfully (version $PTERODACTYL_VERSION)"
+  success "Pterodactyl Wings ($PTERODACTYL_WINGS_VERSION) downloaded successfully"
 }
 
 systemd_file() {
   output "Installing systemd service.."
 
-  if fn_exists github_fetch; then
-    github_fetch "configs/wings.service" "/etc/systemd/system/wings.service" || curl -o /etc/systemd/system/wings.service "$GITHUB_URL"/configs/wings.service
-  else
-    curl -fSsL -o /etc/systemd/system/wings.service "$GITHUB_URL"/configs/wings.service 2>/dev/null || curl -fSsL -o /etc/systemd/system/wings.service "$GITHUB_BASE_URL/refs/heads/main/configs/wings.service" 2>/dev/null || curl -o /etc/systemd/system/wings.service "$GITHUB_URL"/configs/wings.service
-  fi
+  curl -o /etc/systemd/system/wings.service "$GITHUB_URL"/configs/wings.service
   systemctl daemon-reload
   systemctl enable wings
 

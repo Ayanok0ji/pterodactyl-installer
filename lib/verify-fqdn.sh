@@ -6,8 +6,13 @@ set -e
 #                                                                                    #
 # Project 'pterodactyl-installer'                                                    #
 #                                                                                    #
-# Copyright (C) 2018 - 2026, Vilhelm Prytz, <vilhelm@prytznet.se>                    #
-# Fork modifications Copyright (C) 2026, Ayanok0ji <https://github.com/Ayanok0ji>    #
+# Forked & Customized by Ayanok0ji:                                                  #
+# https://github.com/Ayanok0ji/pterodactyl-installer                                 #
+#                                                                                    #
+# Credits to Owner (CCTO):                                                           #
+# Originally created by Vilhelm Prytz, <vilhelm@prytznet.se>                         #
+# Copyright (C) 2018 - 2026, Vilhelm Prytz and pterodactyl-installer contributors    #
+# https://github.com/pterodactyl-installer/pterodactyl-installer                     #
 #                                                                                    #
 #   This program is free software: you can redistribute it and/or modify             #
 #   it under the terms of the GNU General Public License as published by             #
@@ -22,12 +27,10 @@ set -e
 #   You should have received a copy of the GNU General Public License                #
 #   along with this program.  If not, see <https://www.gnu.org/licenses/>.           #
 #                                                                                    #
-# https://github.com/pterodactyl-installer/pterodactyl-installer/blob/master/LICENSE #
+# https://github.com/Ayanok0ji/pterodactyl-installer/blob/master/LICENSE             #
 #                                                                                    #
 # This script is not associated with the official Pterodactyl Project.               #
-# https://github.com/pterodactyl-installer/pterodactyl-installer                     #
-# Fork: https://github.com/Ayanok0ji/pterodactyl-installer                           #
-# Original project CCTO: Vilhelm Prytz & contributors                                #
+# https://github.com/Ayanok0ji/pterodactyl-installer                                 #
 #                                                                                    #
 ######################################################################################
 
@@ -35,7 +38,7 @@ set -e
 fn_exists() { declare -F "$1" >/dev/null; }
 if ! fn_exists lib_loaded; then
   # shellcheck source=lib/lib.sh
-  source /tmp/lib.sh || source <(curl -fSsL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/main/lib/lib.sh" 2>/dev/null || curl -fSsL "$GITHUB_BASE_URL/refs/heads/main/lib/lib.sh" 2>/dev/null || curl -sSL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh)
+  source /tmp/lib.sh || source <(curl -sSL "$GITHUB_BASE_URL/$GITHUB_SOURCE"/lib/lib.sh)
   ! fn_exists lib_loaded && echo "* ERROR: Could not load lib script" && exit 1
 fi
 
