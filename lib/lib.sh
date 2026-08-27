@@ -27,7 +27,7 @@ set -e
 #   You should have received a copy of the GNU General Public License                #
 #   along with this program.  If not, see <https://www.gnu.org/licenses/>.           #
 #                                                                                    #
-# https://github.com/Ayanok0ji/pterodactyl-installer/blob/master/LICENSE             #
+# https://github.com/Ayanok0ji/pterodactyl-installer/blob/main/LICENSE               #
 #                                                                                    #
 # This script is not associated with the official Pterodactyl Project.               #
 # https://github.com/Ayanok0ji/pterodactyl-installer                                 #
@@ -37,8 +37,8 @@ set -e
 # ------------------ Variables ----------------- #
 
 # Versioning
-export GITHUB_SOURCE=${GITHUB_SOURCE:-master}
-export SCRIPT_RELEASE=${SCRIPT_RELEASE:-canary}
+export GITHUB_SOURCE="main"
+export SCRIPT_RELEASE="main"
 
 # Pterodactyl versions
 export PTERODACTYL_PANEL_VERSION=""
@@ -58,7 +58,7 @@ export SUPPORTED=false
 export PANEL_DL_URL="https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz"
 export WINGS_DL_BASE_URL="https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_"
 export MARIADB_URL="https://downloads.mariadb.com/MariaDB/mariadb_repo_setup"
-export GITHUB_BASE_URL=${GITHUB_BASE_URL:-"https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer"}
+export GITHUB_BASE_URL="https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer"
 export GITHUB_URL="$GITHUB_BASE_URL/$GITHUB_SOURCE"
 
 # Colors

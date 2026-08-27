@@ -27,16 +27,16 @@ set -e
 #   You should have received a copy of the GNU General Public License                #
 #   along with this program.  If not, see <https://www.gnu.org/licenses/>.           #
 #                                                                                    #
-# https://github.com/Ayanok0ji/pterodactyl-installer/blob/master/LICENSE             #
+# https://github.com/Ayanok0ji/pterodactyl-installer/blob/main/LICENSE               #
 #                                                                                    #
 # This script is not associated with the official Pterodactyl Project.               #
 # https://github.com/Ayanok0ji/pterodactyl-installer                                 #
 #                                                                                    #
 ######################################################################################
 
-export GITHUB_SOURCE="${GITHUB_SOURCE:-master}"
-export SCRIPT_RELEASE="${SCRIPT_RELEASE:-master}"
-export GITHUB_BASE_URL="${GITHUB_BASE_URL:-https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer}"
+export GITHUB_SOURCE="main"
+export SCRIPT_RELEASE="main"
+export GITHUB_BASE_URL="https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer"
 
 LOG_PATH="/var/log/pterodactyl-installer.log"
 
@@ -61,7 +61,7 @@ source /tmp/lib.sh
 execute() {
   echo -e "\n\n* pterodactyl-installer $(date) \n\n" >>$LOG_PATH
 
-  [[ "$1" == *"canary"* ]] && export GITHUB_SOURCE="master" && export SCRIPT_RELEASE="canary"
+  [[ "$1" == *"canary"* ]] && export GITHUB_SOURCE="main" && export SCRIPT_RELEASE="canary"
   update_lib_source
   run_ui "${1//_canary/}" |& tee -a $LOG_PATH
 
@@ -87,10 +87,10 @@ while [ "$done" == false ]; do
     "Install both [0] and [1] on the same machine (wings script runs after panel)"
     # "Uninstall panel or wings\n"
 
-    "Install panel with canary version of the script (the versions that lives in master, may be broken!)"
-    "Install Wings with canary version of the script (the versions that lives in master, may be broken!)"
+    "Install panel with canary version of the script (the versions that lives in main, may be broken!)"
+    "Install Wings with canary version of the script (the versions that lives in main, may be broken!)"
     "Install both [3] and [4] on the same machine (wings script runs after panel)"
-    "Uninstall panel or wings with canary version of the script (the versions that lives in master, may be broken!)"
+    "Uninstall panel or wings with canary version of the script (the versions that lives in main, may be broken!)"
   )
 
   actions=(

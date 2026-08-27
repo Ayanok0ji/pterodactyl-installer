@@ -63,7 +63,7 @@ _\* Indicates an operating system and release that previously was supported by t
 To use the installation scripts, simply run this command as root:
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/master/install.sh)
+bash <(curl -s https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer/main/install.sh)
 ```
 
 _Note: On some systems, it's required to be already logged in as root before executing the one-line command (where `sudo` is in front of the command does not work)._
