@@ -49,11 +49,42 @@ if ! [ -x "$(command -v curl)" ]; then
   exit 1
 fi
 
+# Helper to check if function exists (needed before lib.sh is fully loaded)
+fn_exists() { declare -F "$1" >/dev/null 2>&1; }
+
 # Always remove lib.sh, before downloading it
 [ -f /tmp/lib.sh ] && rm -rf /tmp/lib.sh
-curl -sSL -o /tmp/lib.sh "$GITHUB_BASE_URL"/master/lib/lib.sh
+
+# Try to download lib.sh from fork (master then main), fallback to upstream if 404
+if ! curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/$GITHUB_SOURCE/lib/lib.sh" 2>/dev/null; then
+  if ! curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/master/lib/lib.sh" 2>/dev/null; then
+    curl -fSsL -o /tmp/lib.sh "$GITHUB_BASE_URL/main/lib/lib.sh" 2>/dev/null || true
+  fi
+fi
+
+# If fork lib.sh still missing (404), fallback to upstream (ensures installer always works)
+if [ ! -s /tmp/lib.sh ] || grep -q "404" /tmp/lib.sh 2>/dev/null; then
+  echo "* Warning: fork lib.sh not found at $GITHUB_BASE_URL, falling back to upstream..."
+  rm -rf /tmp/lib.sh
+  curl -fSsL -o /tmp/lib.sh "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/$GITHUB_SOURCE/lib/lib.sh" 2>/dev/null || \
+  curl -fSsL -o /tmp/lib.sh "https://raw.githubusercontent.com/pterodactyl-installer/pterodactyl-installer/master/lib/lib.sh" 2>/dev/null || true
+fi
+
 # shellcheck source=lib/lib.sh
-source /tmp/lib.sh
+if [ -f /tmp/lib.sh ]; then
+  # shellcheck disable=SC1090
+  source /tmp/lib.sh || { echo "* ERROR: Could not load lib.sh"; cat /tmp/lib.sh; exit 1; }
+else
+  echo "* ERROR: Could not download lib.sh from $GITHUB_BASE_URL"
+  exit 1
+fi
+
+# Verify lib loaded
+if ! fn_exists lib_loaded; then
+  echo "* ERROR: lib.sh loaded but lib_loaded not found - likely 404 HTML"
+  cat /tmp/lib.sh
+  exit 1
+fi
 
 # Allow user to pre-select Pterodactyl version via env var e.g. PTERODACTYL_VERSION=1.11.3
 export PTERODACTYL_VERSION="${PTERODACTYL_VERSION:-}"
