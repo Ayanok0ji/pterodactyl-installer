@@ -221,18 +221,35 @@ get_latest_versions() {
 
 update_lib_source() {
   GITHUB_URL="$GITHUB_BASE_URL/$GITHUB_SOURCE"
-  rm -rf /tmp/lib.sh
-  curl -sSL -o /tmp/lib.sh "$GITHUB_URL"/lib/lib.sh
+  local temp_lib="/tmp/lib.sh.tmp"
+  if curl -sSfL -o "$temp_lib" "$GITHUB_URL"/lib/lib.sh; then
+    mv "$temp_lib" /tmp/lib.sh
+  elif [ ! -f /tmp/lib.sh ]; then
+    error "Failed to download lib.sh from $GITHUB_URL/lib/lib.sh"
+    exit 1
+  fi
   # shellcheck source=lib/lib.sh
   source /tmp/lib.sh
 }
 
 run_installer() {
-  bash <(curl -sSL "$GITHUB_URL/installers/$1.sh")
+  local script_url="$GITHUB_URL/installers/$1.sh"
+  local script_content
+  script_content=$(curl -sSfL "$script_url") || {
+    error "Failed to load installer script from $script_url"
+    exit 1
+  }
+  bash <(echo "$script_content")
 }
 
 run_ui() {
-  bash <(curl -sSL "$GITHUB_URL/ui/$1.sh")
+  local script_url="$GITHUB_URL/ui/$1.sh"
+  local script_content
+  script_content=$(curl -sSfL "$script_url") || {
+    error "Failed to load UI script from $script_url"
+    exit 1
+  }
+  bash <(echo "$script_content")
 }
 
 array_contains_element() {

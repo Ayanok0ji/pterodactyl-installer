@@ -34,9 +34,9 @@ set -e
 #                                                                                    #
 ######################################################################################
 
-export GITHUB_SOURCE="v1.3.0"
-export SCRIPT_RELEASE="v1.3.0"
-export GITHUB_BASE_URL="https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer"
+export GITHUB_SOURCE="${GITHUB_SOURCE:-master}"
+export SCRIPT_RELEASE="${SCRIPT_RELEASE:-master}"
+export GITHUB_BASE_URL="${GITHUB_BASE_URL:-https://raw.githubusercontent.com/Ayanok0ji/pterodactyl-installer}"
 
 LOG_PATH="/var/log/pterodactyl-installer.log"
 
@@ -51,7 +51,10 @@ fi
 [ -f /tmp/lib.sh ] && rm -rf /tmp/lib.sh
 [ -f /tmp/pterodactyl_installer_version ] && rm -rf /tmp/pterodactyl_installer_version
 
-curl -sSL -o /tmp/lib.sh "$GITHUB_BASE_URL"/master/lib/lib.sh
+if ! curl -sSfL -o /tmp/lib.sh "$GITHUB_BASE_URL/$GITHUB_SOURCE/lib/lib.sh"; then
+  echo "* ERROR: Failed to download lib.sh from $GITHUB_BASE_URL/$GITHUB_SOURCE/lib/lib.sh"
+  exit 1
+fi
 # shellcheck source=lib/lib.sh
 source /tmp/lib.sh
 
